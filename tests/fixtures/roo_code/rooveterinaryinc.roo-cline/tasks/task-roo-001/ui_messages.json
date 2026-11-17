@@ -1,0 +1,12 @@
+[
+  {
+    "type": "ask",
+    "timestamp": "2026-11-16T12:00:00Z",
+    "text": "Verify Roo Code task parsing on Windows paths."
+  },
+  {
+    "type": "say",
+    "timestamp": "2026-11-16T12:00:10Z",
+    "text": "Roo Code task parsing normalized Windows backslashes cleanly."
+  }
+]

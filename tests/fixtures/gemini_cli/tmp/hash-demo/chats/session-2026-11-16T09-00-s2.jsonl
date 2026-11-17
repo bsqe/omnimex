@@ -1,0 +1,3 @@
+{"kind":"main","sessionId":"gem-stream-002","projectHash":"hash-demo","startTime":"2026-11-16T09:00:00Z"}
+{"$set":{"lastUpdated":"2026-11-16T09:00:05Z","messages":[{"id":"g1","type":"user","timestamp":"2026-11-16T09:00:00Z","content":[{"text":"Check incremental JSONL replay for Gemini CLI."}]}]}}
+{"id":"g2","type":"gemini","timestamp":"2026-11-16T09:00:05Z","content":"Incremental replay applies $set patches and appended message records."}

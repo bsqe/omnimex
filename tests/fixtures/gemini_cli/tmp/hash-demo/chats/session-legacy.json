@@ -1,0 +1,18 @@
+{
+  "sessionId": "gem-legacy-001",
+  "projectHash": "hash-demo",
+  "startTime": "2026-11-16T08:00:00Z",
+  "lastUpdated": "2026-11-16T08:05:00Z",
+  "messages": [
+    {
+      "type": "user",
+      "content": "Working directory: E:/demo/omnimex\nExplain the RRF scoring formula.",
+      "timestamp": "2026-11-16T08:00:00Z"
+    },
+    {
+      "type": "model",
+      "content": "RRF sums 1 / (k + rank) across FTS5 BM25 and vector rankings.",
+      "timestamp": "2026-11-16T08:01:00Z"
+    }
+  ]
+}

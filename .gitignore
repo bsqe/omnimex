@@ -1,0 +1,28 @@
+# Reference upstream repos
+references/
+
+# Python environments & caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node / Frontend
+node_modules/
+frontend/dist/
+.vite/
+
+# Local runtime data, indexes & personal memories
+data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.env
+omnimex.local.toml

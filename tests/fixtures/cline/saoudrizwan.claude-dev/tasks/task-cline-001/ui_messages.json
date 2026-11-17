@@ -1,0 +1,12 @@
+[
+  {
+    "role": "user",
+    "timestamp": 1763281000,
+    "content": "Create the adapter registry in Python."
+  },
+  {
+    "role": "assistant",
+    "timestamp": 1763281005,
+    "content": "I will create src/omnimex/adapters/registry.py with automatic adapter registration."
+  }
+]

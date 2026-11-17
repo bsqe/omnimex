@@ -1,0 +1,3 @@
+{"type":"session.start","data":{"sessionId":"cli-sess-001","cwd":"E:/demo/omnimex"},"timestamp":"2026-11-16T13:00:00Z"}
+{"type":"user.message","data":{"content":"Inspect watchdog file event debouncing."},"timestamp":"2026-11-16T13:00:01Z"}
+{"type":"assistant.message","data":{"content":"Debouncing collapses rapid file modifications per path.","toolRequests":[{"name":"Read","input":{"path":"src/omnimex/adapters/watcher.py"}}]},"timestamp":"2026-11-16T13:00:02Z"}

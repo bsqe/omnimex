@@ -1,0 +1,10 @@
+{
+  "id": "msg_002",
+  "sessionID": "ses_001",
+  "role": "assistant",
+  "modelID": "claude-sonnet-4-5",
+  "time": {
+    "created": 1763283002000,
+    "completed": 1763283004000
+  }
+}

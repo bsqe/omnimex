@@ -1,0 +1,6 @@
+{
+  "id": "part_001",
+  "messageID": "msg_002",
+  "type": "reasoning",
+  "text": "Prefer session_v2 when a migrated session ID appears in both 1.x and 2.x tables."
+}

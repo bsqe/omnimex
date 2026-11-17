@@ -1,0 +1,6 @@
+{
+  "id": "part_002",
+  "messageID": "msg_002",
+  "type": "text",
+  "text": "Read session_v2/session_message first and skip duplicate session IDs from legacy 1.x tables."
+}
