@@ -459,6 +459,7 @@ def test_api_sse_streams_cors_and_static_spa_isolation(tmp_path: Path) -> None:
             root_html = client.get("/")
             assert root_html.status_code == 200
             assert "Omnimex UI" in root_html.text
+            assert "no-store" in root_html.headers.get("cache-control", "")
 
             spa_route = client.get("/sessions/antigravity:123")
             assert spa_route.status_code == 200

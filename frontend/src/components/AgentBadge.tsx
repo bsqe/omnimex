@@ -17,6 +17,7 @@ export function AgentBadge({ agent, compact = false }: AgentBadgeProps) {
 
   return (
     <span
+      translate="no"
       className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium tracking-tight ${meta.colorClass}`}
     >
       <span className={`h-1.5 w-1.5 rounded-full ${meta.dotClass}`} />

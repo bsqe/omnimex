@@ -78,6 +78,11 @@ def _mount_static_frontend(app: FastAPI, dist_dir: Path) -> None:
         app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="frontend-assets")
 
     index_file = resolved_dist / "index.html"
+    no_cache_headers = {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    }
 
     @app.get("/{full_path:path}", include_in_schema=False)
     def serve_spa(full_path: str):
@@ -90,8 +95,10 @@ def _mount_static_frontend(app: FastAPI, dist_dir: Path) -> None:
             except ValueError:
                 raise ApiError(403, "PERMISSION_DENIED", "Forbidden static path") from None
             if target.is_file():
+                if target.name == "index.html":
+                    return FileResponse(target, headers=no_cache_headers)
                 return FileResponse(target)
-        return FileResponse(index_file)
+        return FileResponse(index_file, headers=no_cache_headers)
 
 
 def _register_exception_handlers(app: FastAPI) -> None:

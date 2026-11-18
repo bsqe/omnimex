@@ -468,4 +468,24 @@ describe('Omnimex UI Sections', () => {
     listSpy.mockRestore();
     getSessionSpy.mockRestore();
   });
+
+  it('switches natively between EN and Chinese UI in App header without external browser translation', async () => {
+    window.localStorage.removeItem('omnimex.locale');
+    render(<App />);
+
+    expect(await screen.findByText('Search & Explorer')).toBeInTheDocument();
+    const langBtn = screen.getByRole('button', { name: /Switch UI language to Chinese/i });
+    fireEvent.click(langBtn);
+
+    expect(await screen.findByText('搜索与会话')).toBeInTheDocument();
+    expect(screen.getByText('记忆中心')).toBeInTheDocument();
+    expect(screen.getByText('跨 Agent 交接')).toBeInTheDocument();
+    expect(screen.getByText('适配器与统计')).toBeInTheDocument();
+    expect(document.documentElement.lang).toBe('zh-CN');
+
+    // Toggle back cleanly so default locale remains clean for any subsequent tests
+    fireEvent.click(screen.getByRole('button', { name: /切换界面语言为英文/i }));
+    expect(await screen.findByText('Search & Explorer')).toBeInTheDocument();
+    window.localStorage.removeItem('omnimex.locale');
+  });
 });

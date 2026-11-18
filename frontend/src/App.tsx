@@ -4,6 +4,7 @@ import {
   ArrowRightLeft,
   BookOpen,
   Database,
+  Languages,
   Radio,
   RefreshCw,
   Search,
@@ -11,21 +12,24 @@ import {
 } from 'lucide-react';
 import { apiClient, type ConnectionMode, type ConnectionState } from './api/client';
 import type { OmnimexEvent } from './api/types';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { AdaptersStats } from './sections/AdaptersStats';
 import { HandoffWorkbench } from './sections/HandoffWorkbench';
 import { MemoryHub } from './sections/MemoryHub';
 import { SearchExplorer } from './sections/SearchExplorer';
+import { LocaleProvider, useLocale } from './utils/i18n';
 
 type SectionId = 'search' | 'memories' | 'handoff' | 'adapters';
 
-const NAV_ITEMS: Array<{ id: SectionId; label: string; icon: typeof Search }> = [
-  { id: 'search', label: 'Search & Explorer', icon: Search },
-  { id: 'memories', label: 'Memory Hub', icon: BookOpen },
-  { id: 'handoff', label: 'Handoff Workbench', icon: ArrowRightLeft },
-  { id: 'adapters', label: 'Adapters & Stats', icon: Activity },
+const NAV_ITEMS: Array<{ id: SectionId; labelEn: string; labelZh: string; icon: typeof Search }> = [
+  { id: 'search', labelEn: 'Search & Explorer', labelZh: '搜索与会话', icon: Search },
+  { id: 'memories', labelEn: 'Memory Hub', labelZh: '记忆中心', icon: BookOpen },
+  { id: 'handoff', labelEn: 'Handoff Workbench', labelZh: '跨 Agent 交接', icon: ArrowRightLeft },
+  { id: 'adapters', labelEn: 'Adapters & Stats', labelZh: '适配器与统计', icon: Activity },
 ];
 
-export function App() {
+function AppShell() {
+  const { locale, isZh, toggleLocale, t } = useLocale();
   const [activeTab, setActiveTab] = useState<SectionId>('search');
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [highlightTurnIndex, setHighlightTurnIndex] = useState<number | null>(null);
@@ -147,12 +151,19 @@ export function App() {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold tracking-tight text-white">Omnimex</span>
-                  <span className="rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 font-mono text-[10px] text-slate-300">
+                  <span translate="no" className="text-sm font-bold tracking-tight text-white">
+                    Omnimex
+                  </span>
+                  <span
+                    translate="no"
+                    className="rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 font-mono text-[10px] text-slate-300"
+                  >
                     LOCAL
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-400">Cross-Agent Memory & Session Hub</p>
+                <p className="text-[11px] text-slate-400">
+                  <span>{t('Cross-Agent Memory & Session Hub', '跨 Agent 记忆与会话中心')}</span>
+                </p>
               </div>
             </div>
 
@@ -172,23 +183,27 @@ export function App() {
                     }`}
                   >
                     <Icon className="h-3.5 w-3.5" />
-                    <span>{item.label}</span>
+                    <span>{isZh ? item.labelZh : item.labelEn}</span>
                   </button>
                 );
               })}
             </nav>
           </div>
 
-          {/* Right Status + Demo/Live Toggle */}
+          {/* Right Status + Demo/Live Toggle + Language Switcher */}
           <div className="flex flex-wrap items-center gap-2.5">
             {lastEvent && !conn.usingMock && (
-              <span className="hidden items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1 font-mono text-[11px] text-slate-400 xl:inline-flex">
+              <span
+                translate="no"
+                className="hidden items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1 font-mono text-[11px] text-slate-400 xl:inline-flex"
+              >
                 <Radio className="h-3 w-3 text-emerald-400" />
-                {lastEvent.type}
+                <span>{lastEvent.type}</span>
               </span>
             )}
 
             <div
+              key={conn.usingMock ? 'mock' : conn.backendReachable ? 'live' : 'offline'}
               className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium ${
                 conn.usingMock
                   ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
@@ -199,20 +214,20 @@ export function App() {
               title={conn.lastError ?? undefined}
             >
               {conn.usingMock ? (
-                <>
+                <span key="mock-pill" className="inline-flex items-center gap-1.5">
                   <WifiOff className="h-3.5 w-3.5" />
-                  <span>Demo Fallback</span>
-                </>
+                  <span>{t('Demo Fallback', '演示数据模式')}</span>
+                </span>
               ) : conn.backendReachable ? (
-                <>
+                <span key="live-pill" className="inline-flex items-center gap-1.5">
                   <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                  <span>Live API</span>
-                </>
+                  <span>{t('Live API', '实时接口')}</span>
+                </span>
               ) : (
-                <>
+                <span key="offline-pill" className="inline-flex items-center gap-1.5">
                   <WifiOff className="h-3.5 w-3.5" />
-                  <span>API Offline</span>
-                </>
+                  <span>{t('API Offline', '接口离线')}</span>
+                </span>
               )}
             </div>
 
@@ -228,20 +243,37 @@ export function App() {
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  {m}
+                  <span>
+                    {m === 'auto'
+                      ? t('auto', '自动')
+                      : m === 'live'
+                        ? t('live', '实时')
+                        : t('demo', '演示')}
+                  </span>
                 </button>
               ))}
             </div>
+
+            <button
+              type="button"
+              onClick={toggleLocale}
+              aria-label={t('Switch UI language to Chinese', '切换界面语言为英文')}
+              title={t('Switch UI to Chinese (native, no browser translate needed)', '切换为原生英文界面')}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1 text-[11px] font-medium text-slate-300 transition-colors hover:border-indigo-500/50 hover:text-white"
+            >
+              <Languages className="h-3.5 w-3.5 text-indigo-400" />
+              <span translate="no">{locale === 'zh' ? '中文' : 'EN'}</span>
+            </button>
 
             {conn.usingMock && conn.mode === 'auto' && (
               <button
                 type="button"
                 onClick={() => handleModeChange('auto')}
-                title="Retry connecting to local FastAPI backend"
+                title={t('Retry connecting to local FastAPI backend', '重试连接本地后端服务')}
                 className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800/80 px-2.5 py-1 text-xs text-slate-300 hover:text-white"
               >
                 <RefreshCw className="h-3 w-3" />
-                Retry
+                <span>{t('Retry', '重试')}</span>
               </button>
             )}
           </div>
@@ -253,10 +285,15 @@ export function App() {
         <div className="mx-auto h-full max-w-[1600px]">
           {!initialProbeDone ? (
             <div className="flex h-full items-center justify-center text-xs text-slate-500">
-              Checking local Omnimex API...
+              <span>{t('Checking local Omnimex API...', '正在检查本地 Omnimex 服务...')}</span>
             </div>
           ) : (
-            <>
+            <ErrorBoundary
+              key={`boundary-${activeTab}`}
+              isZh={isZh}
+              resetKeys={[activeTab, selectedSessionId, refreshSignal]}
+              onReset={() => setRefreshSignal((s) => s + 1)}
+            >
               {activeTab === 'search' && (
                 <SearchExplorer
                   selectedSessionId={selectedSessionId}
@@ -289,11 +326,21 @@ export function App() {
                   onDataChanged={() => setRefreshSignal((s) => s + 1)}
                 />
               )}
-            </>
+            </ErrorBoundary>
           )}
         </div>
       </main>
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <LocaleProvider>
+      <ErrorBoundary fullScreen>
+        <AppShell />
+      </ErrorBoundary>
+    </LocaleProvider>
   );
 }
 

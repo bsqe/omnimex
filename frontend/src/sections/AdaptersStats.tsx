@@ -23,6 +23,7 @@ import type {
 } from '../api/types';
 import { AgentBadge } from '../components/AgentBadge';
 import { formatBytes, formatRelativeTime } from '../utils/format';
+import { useLocale } from '../utils/i18n';
 
 interface AdaptersStatsProps {
   refreshSignal: number;
@@ -63,6 +64,7 @@ function StatusPill({ status }: { status: AdapterHealth['status'] }) {
 }
 
 export function AdaptersStats({ refreshSignal, onDataChanged }: AdaptersStatsProps) {
+  const { locale, t } = useLocale();
   const [adapters, setAdapters] = useState<AdapterHealth[]>([]);
   const [watcherRunning, setWatcherRunning] = useState(false);
   const [stats, setStats] = useState<StatsResponse | null>(null);
@@ -268,9 +270,16 @@ export function AdaptersStats({ refreshSignal, onDataChanged }: AdaptersStatsPro
         <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 lg:col-span-6">
           <div className="mb-3 flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-semibold text-white">Session & Turn Counts per Agent</h2>
+              <h2 className="text-sm font-semibold text-white">
+                <span>{t('Session & Turn Counts per Agent', '各 Agent 会话与轮次统计')}</span>
+              </h2>
               <p className="text-xs text-slate-400">
-                Indexed conversations and turn volume across detected coding assistants.
+                <span>
+                  {t(
+                    'Indexed conversations and turn volume across detected coding assistants.',
+                    '已索引的本地各编码助手历史对话与轮次汇总。'
+                  )}
+                </span>
               </p>
             </div>
           </div>
@@ -310,15 +319,22 @@ export function AdaptersStats({ refreshSignal, onDataChanged }: AdaptersStatsPro
           <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-sm font-semibold text-white">Memory Distiller Configuration</h2>
+                <h2 className="text-sm font-semibold text-white">
+                  <span>{t('Memory Distiller Configuration', '记忆蒸馏器配置')}</span>
+                </h2>
                 {distiller?.zero_cost_mode && (
                   <span className="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
-                    Zero-Cost Mode
+                    <span>{t('Zero-Cost Mode', '零费用模式')}</span>
                   </span>
                 )}
               </div>
               <p className="mt-0.5 text-xs text-slate-400">
-                Starts in free deterministic <code className="text-slate-200">heuristic</code> mode. Switch anytime to local Ollama or any OpenAI-compatible API.
+                <span>
+                  {t(
+                    'Starts in free deterministic heuristic mode. Switch anytime to local Ollama or any OpenAI-compatible API.',
+                    '默认启用零费用启发式规则提取，可随时切换本地 Ollama 或 OpenAI 兼容模型。'
+                  )}
+                </span>
               </p>
             </div>
 
@@ -329,9 +345,11 @@ export function AdaptersStats({ refreshSignal, onDataChanged }: AdaptersStatsPro
               className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/40 bg-indigo-500/15 px-3 py-1.5 text-xs font-semibold text-indigo-200 hover:bg-indigo-500/25 disabled:opacity-50"
             >
               <Play className="h-3 w-3" />
-              {backfilling
-                ? 'Running Backfill...'
-                : `Run Backfill (${distiller?.pending_sessions_count ?? 0} pending)`}
+              <span key={`backfill-${locale}`}>
+                {backfilling
+                  ? t('Running Backfill...', '正在回填...')
+                  : `${t('Run Backfill', '立即回填')} (${distiller?.pending_sessions_count ?? 0} ${t('pending', '待处理')})`}
+              </span>
             </button>
           </div>
 
@@ -424,7 +442,11 @@ export function AdaptersStats({ refreshSignal, onDataChanged }: AdaptersStatsPro
                 disabled={savingSettings}
                 className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700 disabled:opacity-50"
               >
-                {savingSettings ? 'Saving...' : 'Save Distiller Config'}
+                <span>
+                  {savingSettings
+                    ? t('Saving...', '保存中...')
+                    : t('Save Distiller Config', '保存蒸馏器配置')}
+                </span>
               </button>
             </div>
 
@@ -441,12 +463,20 @@ export function AdaptersStats({ refreshSignal, onDataChanged }: AdaptersStatsPro
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-white">Adapter Discovery Health</h2>
+              <h2 className="text-sm font-semibold text-white">
+                <span>{t('Adapter Discovery Health', '适配器发现与健康状态')}</span>
+              </h2>
               <p className="text-xs text-slate-400">
-                Local transcript & native memory adapters with Windows-safe incremental cursors.
+                <span>
+                  {t(
+                    'Local transcript & native memory adapters with Windows-safe incremental cursors.',
+                    '支持 Windows 文件锁安全拷贝与增量游标的多 Agent 本地日志/原生记忆适配器。'
+                  )}
+                </span>
               </p>
             </div>
             <span
+              key={`watcher-${locale}`}
               className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${
                 watcherRunning
                   ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
@@ -454,7 +484,11 @@ export function AdaptersStats({ refreshSignal, onDataChanged }: AdaptersStatsPro
               }`}
             >
               <Radio className="h-3 w-3" />
-              Watcher {watcherRunning ? 'Active' : 'Idle'}
+              <span>
+                {`${t('Watcher', '实时监听')} ${
+                  watcherRunning ? t('Active', '运行中') : t('Idle', '空闲')
+                }`}
+              </span>
             </span>
           </div>
 
@@ -466,7 +500,7 @@ export function AdaptersStats({ refreshSignal, onDataChanged }: AdaptersStatsPro
                 onChange={(e) => setFullRescan(e.target.checked)}
                 className="rounded border-slate-700 bg-slate-950 text-indigo-500"
               />
-              <span>Full rescan</span>
+              <span>{t('Full rescan', '全量重扫')}</span>
             </label>
 
             <button
@@ -476,7 +510,7 @@ export function AdaptersStats({ refreshSignal, onDataChanged }: AdaptersStatsPro
               className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${scanning ? 'animate-spin' : ''}`} />
-              {scanning ? 'Scanning...' : 'Scan Now'}
+              <span>{scanning ? t('Scanning...', '扫描中...') : t('Scan Now', '立即扫描')}</span>
             </button>
           </div>
         </div>

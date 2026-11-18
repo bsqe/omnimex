@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import shutil
@@ -17,7 +18,7 @@ import httpx
 import uvicorn
 from PIL import Image, ImageDraw
 
-from omnimex.api.app import create_app
+from omnimex.api.app import _resolve_static_dist_dir, create_app
 from omnimex.core.config import OmnimexConfig, load_config
 from omnimex.services.ingest import IngestService
 
@@ -111,6 +112,25 @@ def find_app_browser_command(url: str) -> list[str] | None:
         if exe.is_file():
             return [str(exe), f"--app={url}"]
     return None
+
+
+def build_app_launch_url(base_url: str, config: OmnimexConfig | None = None) -> str:
+    """Append a deterministic frontend bundle hash so Edge/Chrome --app windows bypass stale cache."""
+    clean = base_url.rstrip("/")
+    dist_dir = _resolve_static_dist_dir(config) if config is not None else None
+    if dist_dir is None:
+        candidate = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+        if candidate.is_dir():
+            dist_dir = candidate
+    if dist_dir is not None:
+        index_file = dist_dir / "index.html"
+        if index_file.is_file():
+            try:
+                digest = hashlib.sha256(index_file.read_bytes()).hexdigest()[:8]
+                return f"{clean}/?v={digest}"
+            except OSError:
+                pass
+    return clean
 
 
 def open_app_window(url: str) -> bool:
@@ -250,9 +270,11 @@ class OmnimexTrayController:
         ensure_windowless_stdio(self.config.root_dir / "data" / "omnimex-tray.log")
         ensure_tray_ico(self.config.root_dir / "data" / "omnimex.ico")
 
+        launch_url = build_app_launch_url(self.url, self.config)
+
         if is_server_healthy(self.url):
             if self.open_on_start:
-                open_app_window(self.url)
+                open_app_window(launch_url)
             return 0
 
         import pystray
@@ -261,17 +283,17 @@ class OmnimexTrayController:
         wait_for_server(self.url, timeout=8.0)
 
         if self.open_on_start:
-            open_app_window(self.url)
+            open_app_window(launch_url)
 
         menu = pystray.Menu(
             pystray.MenuItem(
                 "打开 Omnimex 独立窗口",
-                lambda _icon, _item: open_app_window(self.url),
+                lambda _icon, _item: open_app_window(build_app_launch_url(self.url, self.config)),
                 default=True,
             ),
             pystray.MenuItem(
                 "在默认浏览器打开",
-                lambda _icon, _item: webbrowser.open(self.url),
+                lambda _icon, _item: webbrowser.open(build_app_launch_url(self.url, self.config)),
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
@@ -334,6 +356,7 @@ def main() -> None:
 
 __all__ = [
     "OmnimexTrayController",
+    "build_app_launch_url",
     "create_tray_image",
     "ensure_tray_ico",
     "ensure_windowless_stdio",

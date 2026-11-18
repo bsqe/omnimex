@@ -14,6 +14,7 @@ import { AgentBadge } from '../components/AgentBadge';
 import { CopyButton } from '../components/CopyButton';
 import { MarkdownContent } from '../components/MarkdownContent';
 import { formatRelativeTime, shortenWorkspace } from '../utils/format';
+import { useLocale } from '../utils/i18n';
 
 interface HandoffWorkbenchProps {
   initialSessionId: string | null;
@@ -24,6 +25,7 @@ export function HandoffWorkbench({
   initialSessionId,
   refreshSignal,
 }: HandoffWorkbenchProps) {
+  const { locale, t } = useLocale();
   const [sessions, setSessions] = useState<NormalizedSession[]>([]);
   const [sessionFilter, setSessionFilter] = useState('');
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
@@ -141,15 +143,25 @@ export function HandoffWorkbench({
       {/* Left Configuration Column */}
       <div className="flex flex-col gap-4 overflow-y-auto rounded-xl border border-slate-800 bg-slate-900/60 p-4 lg:col-span-5">
         <div>
-          <h2 className="text-sm font-semibold text-white">1. Source Session</h2>
+          <h2 className="text-sm font-semibold text-white">
+            <span>{t('1. Source Session', '1. 选择源会话')}</span>
+          </h2>
           <p className="mt-0.5 text-xs text-slate-400">
-            Select any indexed session across agents to transfer context cleanly.
+            <span>
+              {t(
+                'Select any indexed session across agents to transfer context cleanly.',
+                '从任意 Agent 历史会话中挑选一条，提取上下文交给下一个 Agent 接手。'
+              )}
+            </span>
           </p>
           <input
             type="text"
             value={sessionFilter}
             onChange={(e) => setSessionFilter(e.target.value)}
-            placeholder="Filter sessions by title, agent, workspace..."
+            placeholder={t(
+              'Filter sessions by title, agent, workspace...',
+              '按标题、Agent 或工作区筛选会话...'
+            )}
             className="mt-2.5 w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
           />
           <div className="mt-2 max-h-56 divide-y divide-slate-800/70 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/60">
@@ -183,9 +195,16 @@ export function HandoffWorkbench({
         </div>
 
         <div>
-          <h2 className="text-sm font-semibold text-white">2. Target Agent</h2>
+          <h2 className="text-sm font-semibold text-white">
+            <span>{t('2. Target Agent', '2. 选择目标 Agent')}</span>
+          </h2>
           <p className="mt-0.5 text-xs text-slate-400">
-            Tailor formatting, constraints, and instructions for the receiving coding agent.
+            <span>
+              {t(
+                'Tailor formatting, constraints, and instructions for the receiving coding agent.',
+                '针对接手工作的编程 Agent 自动定制交接格式、约束与说明。'
+              )}
+            </span>
           </p>
           <div className="mt-2.5 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
             {TARGET_AGENTS.map((agent) => {
@@ -203,7 +222,9 @@ export function HandoffWorkbench({
                   }`}
                 >
                   <span className={`h-2 w-2 rounded-full ${meta?.dotClass ?? 'bg-slate-400'}`} />
-                  <span className="truncate font-medium">{meta?.label ?? agent}</span>
+                  <span translate="no" className="truncate font-medium">
+                    {meta?.label ?? agent}
+                  </span>
                 </button>
               );
             })}
@@ -211,7 +232,9 @@ export function HandoffWorkbench({
         </div>
 
         <div className="space-y-3 border-t border-slate-800 pt-3">
-          <h2 className="text-sm font-semibold text-white">3. Brief Options</h2>
+          <h2 className="text-sm font-semibold text-white">
+            <span>{t('3. Brief Options', '3. 简报选项')}</span>
+          </h2>
 
           <div className="flex flex-wrap gap-4 text-xs text-slate-300">
             <label className="inline-flex cursor-pointer items-center gap-2">
@@ -221,7 +244,7 @@ export function HandoffWorkbench({
                 onChange={(e) => setIncludeMemories(e.target.checked)}
                 className="rounded border-slate-700 bg-slate-950 text-indigo-500"
               />
-              <span>Include central memories</span>
+              <span>{t('Include central memories', '附带关联中央记忆')}</span>
             </label>
             <label className="inline-flex cursor-pointer items-center gap-2">
               <input
@@ -230,14 +253,16 @@ export function HandoffWorkbench({
                 onChange={(e) => setIncludeToolSummary(e.target.checked)}
                 className="rounded border-slate-700 bg-slate-950 text-indigo-500"
               />
-              <span>Include tool summary</span>
+              <span>{t('Include tool summary', '附带工具操作摘要')}</span>
             </label>
           </div>
 
           <div>
             <div className="mb-1 flex items-center justify-between text-xs text-slate-400">
-              <span>Target Token Budget</span>
-              <span className="font-mono text-slate-200">{maxTokens} tok</span>
+              <span>{t('Target Token Budget', '目标 Token 预算')}</span>
+              <span translate="no" className="font-mono text-slate-200">
+                {`${maxTokens} tok`}
+              </span>
             </div>
             <input
               type="range"
@@ -252,13 +277,16 @@ export function HandoffWorkbench({
 
           <div>
             <label className="mb-1 block text-xs text-slate-400">
-              Custom Handoff Instructions (optional)
+              <span>{t('Custom Handoff Instructions (optional)', '补充交接说明（可选）')}</span>
             </label>
             <textarea
               rows={2}
               value={customInstructions}
               onChange={(e) => setCustomInstructions(e.target.value)}
-              placeholder="e.g. Focus on completing backend endpoints and running pytest..."
+              placeholder={t(
+                'e.g. Focus on completing backend endpoints and running pytest...',
+                '例如：请重点完成剩余后端接口并运行 pytest 验证...'
+              )}
               className="w-full rounded-lg border border-slate-800 bg-slate-950 p-2.5 text-xs text-slate-200 placeholder-slate-600 focus:border-indigo-500 focus:outline-none"
             />
           </div>
@@ -270,7 +298,11 @@ export function HandoffWorkbench({
             className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
           >
             <Sparkles className="h-3.5 w-3.5" />
-            {generating ? 'Generating Brief...' : 'Generate Handoff Brief'}
+            <span>
+              {generating
+                ? t('Generating Brief...', '正在生成交接简报...')
+                : t('Generate Handoff Brief', '生成跨 Agent 交接简报')}
+            </span>
           </button>
         </div>
       </div>
@@ -305,7 +337,7 @@ export function HandoffWorkbench({
                   {brief.redacted && (
                     <span className="inline-flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300">
                       <ShieldCheck className="h-3 w-3" />
-                      Secrets Redacted
+                      <span>{t('Secrets Redacted', '已脱敏密钥')}</span>
                     </span>
                   )}
                 </div>
@@ -321,7 +353,7 @@ export function HandoffWorkbench({
                           : 'text-slate-400 hover:text-slate-200'
                       }`}
                     >
-                      Preview
+                      <span>{t('Preview', '渲染预览')}</span>
                     </button>
                     <button
                       type="button"
@@ -332,24 +364,25 @@ export function HandoffWorkbench({
                           : 'text-slate-400 hover:text-slate-200'
                       }`}
                     >
-                      Raw Markdown
+                      <span>{t('Raw Markdown', 'Markdown 原文')}</span>
                     </button>
                   </div>
 
                   <button
                     type="button"
                     onClick={handleDownload}
-                    title="Download .md"
+                    title={t('Download .md', '导出 .md')}
                     className="inline-flex items-center gap-1 rounded-lg border border-slate-700/80 bg-slate-800/80 px-2.5 py-1.5 text-xs text-slate-300 hover:text-white"
                   >
                     <Download className="h-3.5 w-3.5" />
-                    .md
+                    <span translate="no">.md</span>
                   </button>
 
                   <CopyButton
+                    key={`copy-${locale}`}
                     text={brief.markdown}
-                    label="Copy Brief"
-                    copiedLabel="Brief Copied!"
+                    label={t('Copy Brief', '复制简报')}
+                    copiedLabel={t('Brief Copied!', '已复制！')}
                     size="sm"
                   />
                 </div>

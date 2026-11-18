@@ -30,6 +30,7 @@ import { AgentBadge } from '../components/AgentBadge';
 import { CopyButton } from '../components/CopyButton';
 import { MarkdownContent } from '../components/MarkdownContent';
 import { formatRelativeTime, formatTimestamp, shortenWorkspace } from '../utils/format';
+import { useLocale } from '../utils/i18n';
 
 const TURN_PAGE_SIZE = 40;
 const GAP_FETCH_LIMIT = 60;
@@ -172,6 +173,7 @@ const ThinkingCard = memo(function ThinkingCard({
   thinking: string;
   defaultOpen?: boolean;
 }) {
+  const { t } = useLocale();
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="rounded-lg border border-indigo-500/20 bg-indigo-950/20">
@@ -183,12 +185,14 @@ const ThinkingCard = memo(function ThinkingCard({
         <div className="flex items-center gap-2">
           {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           <Brain className="h-3.5 w-3.5 text-indigo-400" />
-          <span className="font-medium">Reasoning / Thinking</span>
-          <span className="font-mono text-[11px] text-indigo-400/70">
-            ({thinking.length} chars)
+          <span className="font-medium">{t('Reasoning / Thinking', '思考过程 / 推理')}</span>
+          <span translate="no" className="font-mono text-[11px] text-indigo-400/70">
+            ({thinking.length} {t('chars', '字符')})
           </span>
         </div>
-        <span className="text-[11px] text-indigo-300/70">{open ? 'Hide' : 'Expand'}</span>
+        <span className="text-[11px] text-indigo-300/70">
+          {open ? t('Hide', '收起') : t('Expand', '展开')}
+        </span>
       </button>
       {open && (
         <div className="border-t border-indigo-500/20 px-3 py-2.5 font-mono text-xs leading-relaxed text-indigo-100/80 whitespace-pre-wrap">
@@ -228,6 +232,7 @@ const TurnCard = memo(function TurnCard({
   onExpandFullGapTurn?: (turnIndex: number) => void;
   compact?: boolean;
 }) {
+  const { isZh, t } = useLocale();
   const [revealLocalProcess, setRevealLocalProcess] = useState(false);
   const isUser = turn.role === 'user';
   const gapCount = precedingProcess?.gapRange
@@ -248,14 +253,25 @@ const TurnCard = memo(function TurnCard({
 
   let foldLabel = '';
   if (intermediateCount > 0) {
-    const durPrefix = durationLabel ? `Thought ${durationLabel} · ` : '';
-    foldLabel = `${durPrefix}${intermediateCount} process step${intermediateCount === 1 ? '' : 's'} (thinking & tools)`;
+    if (isZh) {
+      const durPrefix = durationLabel ? `耗时 ${durationLabel} · ` : '';
+      foldLabel = `${durPrefix}${intermediateCount} 步思考与工具过程`;
+    } else {
+      const durPrefix = durationLabel ? `Thought ${durationLabel} · ` : '';
+      foldLabel = `${durPrefix}${intermediateCount} process step${intermediateCount === 1 ? '' : 's'} (thinking & tools)`;
+    }
   } else if (turn.thinking && turn.tool_calls.length > 0) {
-    foldLabel = `Thinking & ${turn.tool_calls.length} tool call${turn.tool_calls.length === 1 ? '' : 's'}`;
+    foldLabel = isZh
+      ? `思考过程与 ${turn.tool_calls.length} 次工具调用`
+      : `Thinking & ${turn.tool_calls.length} tool call${turn.tool_calls.length === 1 ? '' : 's'}`;
   } else if (turn.thinking) {
-    foldLabel = `Thinking process (${turn.thinking.length.toLocaleString()} chars)`;
+    foldLabel = isZh
+      ? `思考过程 (${turn.thinking.length.toLocaleString()} 字符)`
+      : `Thinking process (${turn.thinking.length.toLocaleString()} chars)`;
   } else if (turn.tool_calls.length > 0) {
-    foldLabel = `${turn.tool_calls.length} tool call${turn.tool_calls.length === 1 ? '' : 's'}`;
+    foldLabel = isZh
+      ? `${turn.tool_calls.length} 次工具调用`
+      : `${turn.tool_calls.length} tool call${turn.tool_calls.length === 1 ? '' : 's'}`;
   }
 
   const handleToggleIntegrated = () => {
@@ -434,16 +450,23 @@ const TurnCard = memo(function TurnCard({
 
       <MarkdownContent content={turn.content} />
 
-      {isTruncated && (
+              {isTruncated && (
         <div className="mt-2.5 flex items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-950/20 px-3 py-1.5 text-[11px] text-amber-200">
-          <span>Oversized payload truncated for smooth rendering.</span>
+          <span>
+            {t(
+              'Oversized payload truncated for smooth rendering.',
+              '超长内容已摘要截断以保证流畅浏览。'
+            )}
+          </span>
           <button
             type="button"
             disabled={expanding}
             onClick={() => onExpandFullTurn(turn.turn_index)}
             className="rounded border border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 font-medium text-amber-100 hover:bg-amber-500/25 disabled:opacity-50"
           >
-            {expanding ? 'Loading...' : 'Load full turn'}
+            <span>
+              {expanding ? t('Loading...', '加载中...') : t('Load full turn', '加载完整内容')}
+            </span>
           </button>
         </div>
       )}
@@ -452,7 +475,7 @@ const TurnCard = memo(function TurnCard({
         <div className="mt-3 space-y-2 border-t border-slate-800/70 pt-3">
           <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
             <Terminal className="h-3 w-3 text-sky-400" />
-            <span>Tool Calls ({turn.tool_calls.length})</span>
+            <span>{`${t('Tool Calls', '工具调用')} (${turn.tool_calls.length})`}</span>
           </div>
           {turn.tool_calls.map((tc, idx) => (
             <ToolCallCard
@@ -466,11 +489,15 @@ const TurnCard = memo(function TurnCard({
       {!showProcess && !compact && (isUser || turn.role === 'assistant') && (
         <div className="mt-2 flex flex-wrap items-center justify-end gap-2.5 text-[11px] text-slate-500">
           {!isUser && turn.model && (
-            <span className="font-mono text-slate-500">{turn.model}</span>
+            <span translate="no" className="font-mono text-slate-500">
+              {turn.model}
+            </span>
           )}
-          <span className="font-mono tabular-nums">#{turn.turn_index}</span>
-          <span>{formatTimestamp(turn.timestamp)}</span>
-          <CopyButton text={turn.content} label="Copy turn" />
+          <span translate="no" className="font-mono tabular-nums">
+            #{turn.turn_index}
+          </span>
+          <span translate="no">{formatTimestamp(turn.timestamp)}</span>
+          <CopyButton text={turn.content} label={t('Copy turn', '复制本轮')} />
         </div>
       )}
     </div>
@@ -506,6 +533,10 @@ const ProcessGroupPill = memo(function ProcessGroupPill({
   onLoadMore?: () => void;
   onExpandFullTurn: (turnIndex: number) => void;
 }) {
+  const { isZh, t } = useLocale();
+  const label = isZh
+    ? `${count} 步过程记录 ${subtitle}`
+    : `${count} process step${count === 1 ? '' : 's'} ${subtitle}`;
   return (
     <div className="px-1">
       <button
@@ -515,10 +546,10 @@ const ProcessGroupPill = memo(function ProcessGroupPill({
         className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs text-slate-400 transition-colors hover:bg-slate-800/60 hover:text-slate-200"
       >
         <Brain className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-        <span>
-          {count} process step{count === 1 ? '' : 's'} {subtitle}
-        </span>
-        {loading && <span className="text-[11px] text-slate-500">· Loading...</span>}
+        <span>{label}</span>
+        {loading && (
+          <span className="text-[11px] text-slate-500">{t('· Loading...', '· 加载中...')}</span>
+        )}
         {open ? (
           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500" />
         ) : (
@@ -555,7 +586,13 @@ const ProcessGroupPill = memo(function ProcessGroupPill({
                 className="inline-flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1 text-[11px] font-medium text-slate-300 hover:border-indigo-500/60 hover:text-white disabled:opacity-50"
               >
                 <ChevronDown className="h-3 w-3" />
-                {loading ? 'Loading steps...' : `Load next ${remainingCount} steps`}
+                <span>
+                  {loading
+                    ? t('Loading steps...', '加载步骤中...')
+                    : isZh
+                      ? `继续加载下 ${remainingCount} 步`
+                      : `Load next ${remainingCount} steps`}
+                </span>
               </button>
             </div>
           )}
@@ -575,6 +612,7 @@ export function SearchExplorer({
   hasPendingSessionUpdate = false,
   onClearPendingSessionUpdate,
 }: SearchExplorerProps) {
+  const { locale, isZh, t } = useLocale();
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<SearchMode>('hybrid');
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
@@ -1144,7 +1182,10 @@ export function SearchExplorer({
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search transcripts across Antigravity, Claude Code, Codex, Cursor... (e.g. sqlite wal, redaction, cursor)"
+              placeholder={t(
+                'Search transcripts across Antigravity, Claude Code, Codex, Cursor... (e.g. sqlite wal, redaction, cursor)',
+                '跨 Antigravity、Claude Code、Codex、Cursor 搜索历史对话...（例如 sqlite wal、redaction、权限）'
+              )}
               className="w-full rounded-lg border border-slate-700/80 bg-slate-950/90 py-2.5 pr-4 pl-10 text-sm text-slate-100 placeholder-slate-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
             />
           </div>
@@ -1162,7 +1203,13 @@ export function SearchExplorer({
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  {m}
+                  <span>
+                    {m === 'hybrid'
+                      ? t('hybrid', '混合')
+                      : m === 'fts'
+                        ? 'FTS'
+                        : t('vector', '矢量')}
+                  </span>
                 </button>
               ))}
             </div>
@@ -1172,7 +1219,7 @@ export function SearchExplorer({
               className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-500"
             >
               <Sparkles className="h-3.5 w-3.5" />
-              Search
+              <span>{t('Search', '搜索')}</span>
             </button>
 
             {(query || selectedAgents.length > 0 || workspaceFilter || dateFrom || dateTo) && (
@@ -1182,7 +1229,7 @@ export function SearchExplorer({
                 className="inline-flex items-center gap-1 rounded-lg border border-slate-700/80 bg-slate-800/60 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                Reset
+                <span>{t('Reset', '重置')}</span>
               </button>
             )}
           </div>
@@ -1192,7 +1239,7 @@ export function SearchExplorer({
         <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-slate-800/80 pt-3">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="mr-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-              Agents:
+              {t('Agents:', '智能体:')}
             </span>
             {availableAgents.map((agent) => {
               const active = selectedAgents.includes(agent);
@@ -1209,9 +1256,12 @@ export function SearchExplorer({
                       : 'border-slate-800 bg-slate-950/70 text-slate-400 hover:border-slate-700 hover:text-slate-200'
                   }`}
                 >
-                  <span>{label}</span>
+                  <span translate="no">{label}</span>
                   {count !== undefined && (
-                    <span className="font-mono text-[10px] tabular-nums text-slate-500">
+                    <span
+                      translate="no"
+                      className="font-mono text-[10px] tabular-nums text-slate-500"
+                    >
                       {count}
                     </span>
                   )}
@@ -1230,7 +1280,7 @@ export function SearchExplorer({
                 aria-label="Workspace filter"
               >
                 <option value="" className="bg-slate-900">
-                  All workspaces
+                  {t('All workspaces', '全部工作区')}
                 </option>
                 {workspaceOptions.map((ws) => (
                   <option key={ws} value={ws} className="bg-slate-900">
@@ -1283,7 +1333,9 @@ export function SearchExplorer({
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                Sessions ({sessions.length})
+                <span key={`sess-${locale}`}>
+                  {`${t('Sessions', '会话')} (${sessions.length})`}
+                </span>
               </button>
               <button
                 type="button"
@@ -1294,7 +1346,9 @@ export function SearchExplorer({
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                Search Hits ({hits.length})
+                <span key={`hits-${locale}`}>
+                  {`${t('Search Hits', '搜索命中')} (${hits.length})`}
+                </span>
               </button>
             </div>
             {listView === 'sessions' && (
@@ -1302,30 +1356,44 @@ export function SearchExplorer({
                 type="button"
                 aria-pressed={showSubagents}
                 onClick={() => setShowSubagents((v) => !v)}
-                title="Include internal subagent / system-initiated sessions (hidden by default)"
+                title={t(
+                  'Include internal subagent / system-initiated sessions (hidden by default)',
+                  '显示后台子代理/系统触发的会话（默认隐藏）'
+                )}
                 className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
                   showSubagents
                     ? 'border-indigo-500/50 bg-indigo-500/20 text-indigo-200 hover:bg-indigo-500/30'
                     : 'border-slate-800 bg-slate-950/70 text-slate-400 hover:border-slate-700 hover:text-slate-200'
                 }`}
               >
-                {showSubagents ? 'Subagents: On' : 'Show subagents'}
+                <span>
+                  {showSubagents
+                    ? t('Subagents: On', '子代理: 开')
+                    : t('Show subagents', '显示子代理')}
+                </span>
               </button>
             )}
             {searchMeta && listView === 'hits' && (
-              <span className="font-mono text-[11px] text-slate-500">
-                {searchMeta.total} hits · {searchMeta.took_ms}ms
+              <span translate="no" className="font-mono text-[11px] text-slate-500">
+                {`${searchMeta.total} ${t('hits', '条')} · ${searchMeta.took_ms}ms`}
               </span>
             )}
           </div>
 
           <div className="flex-1 divide-y divide-slate-800/70 overflow-y-auto">
             {loadingList ? (
-              <div className="p-6 text-center text-xs text-slate-500">Loading transcripts...</div>
+              <div className="p-6 text-center text-xs text-slate-500">
+                <span>{t('Loading transcripts...', '正在加载会话列表...')}</span>
+              </div>
             ) : listView === 'hits' ? (
               hits.length === 0 ? (
                 <div className="p-8 text-center text-xs text-slate-500">
-                  No matching turns found. Try switching to <span className="text-slate-300">hybrid</span> mode or clearing filters.
+                  <span>
+                    {t(
+                      'No matching turns found. Try switching to hybrid mode or clearing filters.',
+                      '未找到匹配对话。可尝试切换到混合检索或清除筛选条件。'
+                    )}
+                  </span>
                 </div>
               ) : (
                 hits.map((hit) => {
@@ -1408,14 +1476,19 @@ export function SearchExplorer({
         <div className="flex flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40 lg:col-span-7 xl:col-span-8">
           {loadingDetail ? (
             <div className="flex flex-1 items-center justify-center p-10 text-sm text-slate-500">
-              Loading transcript...
+              <span>{t('Loading transcript...', '正在加载对话记录...')}</span>
             </div>
           ) : !detail ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-2 p-10 text-center">
               <MessageSquare className="h-8 w-8 text-slate-600" />
-              <p className="text-sm font-medium text-slate-300">Select a session or search hit</p>
+              <p className="text-sm font-medium text-slate-300">
+                {t('Select a session or search hit', '请选择左侧会话或搜索结果')}
+              </p>
               <p className="max-w-sm text-xs text-slate-500">
-                Inspect full turn-by-turn conversations, collapsed thinking blocks, tool call arguments/outputs, and linked memories.
+                {t(
+                  'Inspect full turn-by-turn conversations, collapsed thinking blocks, tool call arguments/outputs, and linked memories.',
+                  '支持一问一答清晰浏览、按需展开思考与工具调用过程，以及查看关联的中央记忆。'
+                )}
               </p>
             </div>
           ) : (
@@ -1426,20 +1499,30 @@ export function SearchExplorer({
                     <div className="mb-1.5 flex flex-wrap items-center gap-2">
                       <AgentBadge agent={detail.agent} />
                       {detail.model && (
-                        <span className="rounded border border-slate-700 bg-slate-800/80 px-2 py-0.5 font-mono text-[11px] text-slate-300">
+                        <span
+                          translate="no"
+                          className="rounded border border-slate-700 bg-slate-800/80 px-2 py-0.5 font-mono text-[11px] text-slate-300"
+                        >
                           {detail.model}
                         </span>
                       )}
                       {linkedMemories.length > 0 && (
-                        <span className="rounded border border-violet-500/30 bg-violet-500/15 px-2 py-0.5 text-[11px] font-medium text-violet-300">
-                          {linkedMemories.length} linked memor{linkedMemories.length === 1 ? 'y' : 'ies'}
+                        <span
+                          key={`mem-${locale}`}
+                          className="rounded border border-violet-500/30 bg-violet-500/15 px-2 py-0.5 text-[11px] font-medium text-violet-300"
+                        >
+                          {isZh
+                            ? `${linkedMemories.length} 条关联记忆`
+                            : `${linkedMemories.length} linked memor${linkedMemories.length === 1 ? 'y' : 'ies'}`}
                         </span>
                       )}
                     </div>
                     <h2 className="text-base font-semibold text-white">{detail.title}</h2>
                     <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[11px] text-slate-400">
-                      <span>{detail.workspace ?? 'No workspace'}</span>
-                      <span className="truncate text-slate-500">{detail.source_path}</span>
+                      <span translate="no">{detail.workspace ?? t('No workspace', '无工作区')}</span>
+                      <span translate="no" className="truncate text-slate-500">
+                        {detail.source_path}
+                      </span>
                     </div>
                   </div>
 
@@ -1454,7 +1537,7 @@ export function SearchExplorer({
                         className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1.5 text-xs font-medium text-emerald-200 hover:bg-emerald-500/25"
                       >
                         <RefreshCw className="h-3 w-3" />
-                        New turns · Reload
+                        <span>{t('New turns · Reload', '有新回复 · 刷新')}</span>
                       </button>
                     )}
 
@@ -1466,7 +1549,10 @@ export function SearchExplorer({
                           prev === detail.id ? null : detail.id
                         )
                       }
-                      title="Toggle hidden thinking traces, tool calls, and intermediate steps"
+                      title={t(
+                        'Toggle hidden thinking traces, tool calls, and intermediate steps',
+                        '切换是否默认展开全部思考过程、工具调用与中间步骤'
+                      )}
                       className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                         showProcess
                           ? 'border-indigo-500/50 bg-indigo-500/20 text-indigo-200 hover:bg-indigo-500/30'
@@ -1474,7 +1560,11 @@ export function SearchExplorer({
                       }`}
                     >
                       <Brain className="h-3.5 w-3.5" />
-                      {showProcess ? 'Thinking & process: On' : 'Show thinking & process'}
+                      <span>
+                        {showProcess
+                          ? t('Thinking & process: On', '思考与过程: 开')
+                          : t('Show thinking & process', '显示思考与过程')}
+                      </span>
                     </button>
 
                     <button
@@ -1483,7 +1573,7 @@ export function SearchExplorer({
                       className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-indigo-500/40 bg-indigo-500/15 px-3 py-1.5 text-xs font-semibold text-indigo-200 transition-colors hover:bg-indigo-500/25"
                     >
                       <ArrowRightLeft className="h-3.5 w-3.5" />
-                      Create Handoff
+                      <span>{t('Create Handoff', '生成交接简报')}</span>
                     </button>
                   </div>
                 </div>
@@ -1499,9 +1589,13 @@ export function SearchExplorer({
                       className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-1.5 text-xs font-medium text-slate-200 hover:border-indigo-500/60 hover:text-white disabled:opacity-50"
                     >
                       <ChevronUp className="h-3.5 w-3.5" />
-                      {loadingMoreTurns
-                        ? 'Loading earlier turns...'
-                        : `Load earlier turns (${turnWindowStart} earlier of ${totalTurns})`}
+                      <span>
+                        {loadingMoreTurns
+                          ? t('Loading earlier turns...', '正在加载更早轮次...')
+                          : isZh
+                            ? `加载更早对话（前面还有 ${turnWindowStart} / 共 ${totalTurns}）`
+                            : `Load earlier turns (${turnWindowStart} earlier of ${totalTurns})`}
+                      </span>
                     </button>
                   </div>
                 )}
@@ -1511,7 +1605,9 @@ export function SearchExplorer({
                     <div className="flex items-center gap-2">
                       <Brain className="h-4 w-4 text-slate-500" />
                       <span>
-                        This session contains {detail.turn_count} internal thinking &amp; tool steps (hidden in clean Q&amp;A view).
+                        {isZh
+                          ? `该会话包含 ${detail.turn_count} 步内部思考与工具记录（默认精简模式下已隐藏）。`
+                          : `This session contains ${detail.turn_count} internal thinking & tool steps (hidden in clean Q&A view).`}
                       </span>
                     </div>
                     <button
@@ -1519,7 +1615,7 @@ export function SearchExplorer({
                       onClick={() => setProcessVisibleSessionId(detail.id)}
                       className="rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1 text-[11px] font-medium text-slate-200 hover:border-indigo-500/50 hover:text-white"
                     >
-                      Show thinking &amp; process
+                      <span>{t('Show thinking & process', '显示思考与过程')}</span>
                     </button>
                   </div>
                 ) : (
@@ -1623,7 +1719,11 @@ export function SearchExplorer({
                       className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-1.5 text-xs font-medium text-slate-200 hover:border-indigo-500/60 hover:text-white disabled:opacity-50"
                     >
                       <ChevronDown className="h-3.5 w-3.5" />
-                      {loadingMoreTurns ? 'Loading newer turns...' : 'Load newer turns'}
+                      <span>
+                        {loadingMoreTurns
+                          ? t('Loading newer turns...', '正在加载后续轮次...')
+                          : t('Load newer turns', '加载后续对话')}
+                      </span>
                     </button>
                   </div>
                 )}

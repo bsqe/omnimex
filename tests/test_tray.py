@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 from omnimex.core.config import OmnimexConfig
 from omnimex.tray import (
     OmnimexTrayController,
+    build_app_launch_url,
     create_tray_image,
     ensure_tray_ico,
     ensure_windowless_stdio,
@@ -74,7 +75,15 @@ def test_tray_controller_reuses_healthy_existing_server(tmp_path: Path) -> None:
     ):
         rc = controller.run()
         assert rc == 0
-        mock_open.assert_called_once_with("http://127.0.0.1:18999")
+        mock_open.assert_called_once()
+        launched_url = mock_open.call_args[0][0]
+        assert launched_url.startswith("http://127.0.0.1:18999")
+
+    custom_dist = tmp_path / "frontend" / "dist"
+    custom_dist.mkdir(parents=True)
+    (custom_dist / "index.html").write_text("<html>v1</html>", encoding="utf-8")
+    v_url = build_app_launch_url("http://127.0.0.1:18999", cfg)
+    assert v_url.startswith("http://127.0.0.1:18999/?v=")
 
 
 def test_tray_controller_background_server_start_and_stop(tmp_path: Path) -> None:

@@ -24,6 +24,7 @@ import type {
 import { AgentBadge } from '../components/AgentBadge';
 import { MarkdownContent } from '../components/MarkdownContent';
 import { formatRelativeTime } from '../utils/format';
+import { useLocale } from '../utils/i18n';
 
 interface MemoryHubProps {
   onOpenSession: (sessionId: string, turnIndex?: number | null) => void;
@@ -83,6 +84,7 @@ function OriginDistillBadge({ card }: { card: MemoryCard }) {
 }
 
 export function MemoryHub({ onOpenSession, refreshSignal }: MemoryHubProps) {
+  const { locale, isZh, t } = useLocale();
   const [memories, setMemories] = useState<MemoryCard[]>([]);
   const [nativeImports, setNativeImports] = useState<NativeMemoryImportStatus[]>([]);
   const [countsByCategory, setCountsByCategory] = useState<Record<MemoryCategory, number>>({
@@ -282,22 +284,37 @@ export function MemoryHub({ onOpenSession, refreshSignal }: MemoryHubProps) {
                   : 'border-slate-800 bg-slate-950 text-slate-400 hover:text-white'
               }`}
             >
-              All ({Object.values(countsByCategory).reduce((a, b) => a + b, 0)})
+              <span key={`all-${locale}`}>
+                {`${t('All', '全部')} (${Object.values(countsByCategory).reduce((a, b) => a + b, 0)})`}
+              </span>
             </button>
-            {(['preference', 'decision', 'pitfall', 'fact'] as MemoryCategory[]).map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setCategoryFilter(cat === categoryFilter ? '' : cat)}
-                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                  categoryFilter === cat
-                    ? CATEGORY_META[cat].badgeClass
-                    : 'border-slate-800 bg-slate-950 text-slate-400 hover:text-white'
-                }`}
-              >
-                {CATEGORY_META[cat].label} ({countsByCategory[cat] ?? 0})
-              </button>
-            ))}
+            {(['preference', 'decision', 'pitfall', 'fact'] as MemoryCategory[]).map((cat) => {
+              const catLabel = isZh
+                ? cat === 'preference'
+                  ? '偏好'
+                  : cat === 'decision'
+                    ? '决策'
+                    : cat === 'pitfall'
+                      ? '避坑'
+                      : '事实'
+                : CATEGORY_META[cat].label;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setCategoryFilter(cat === categoryFilter ? '' : cat)}
+                  className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    categoryFilter === cat
+                      ? CATEGORY_META[cat].badgeClass
+                      : 'border-slate-800 bg-slate-950 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <span key={`${cat}-${locale}`}>
+                    {`${catLabel} (${countsByCategory[cat] ?? 0})`}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -307,7 +324,7 @@ export function MemoryHub({ onOpenSession, refreshSignal }: MemoryHubProps) {
                 type="text"
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
-                placeholder="Filter memories..."
+                placeholder={t('Filter memories...', '筛选记忆关键词...')}
                 className="rounded-lg border border-slate-800 bg-slate-950 py-1.5 pr-3 pl-8 text-xs text-slate-200 placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
               />
             </div>
@@ -320,12 +337,12 @@ export function MemoryHub({ onOpenSession, refreshSignal }: MemoryHubProps) {
               aria-label="Filter by distill or review status"
               className="rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1.5 text-xs text-slate-300 focus:border-indigo-500 focus:outline-none"
             >
-              <option value="all">All statuses</option>
-              <option value="draft">Needs Review (Drafts)</option>
-              <option value="heuristic">Heuristic</option>
-              <option value="llm_distilled">LLM Distilled</option>
-              <option value="manual">Manual</option>
-              <option value="native_import">Native Imports</option>
+              <option value="all">{t('All statuses', '全部状态')}</option>
+              <option value="draft">{t('Needs Review (Drafts)', '待审核草稿')}</option>
+              <option value="heuristic">{t('Heuristic', '规则提取')}</option>
+              <option value="llm_distilled">{t('LLM Distilled', '模型蒸馏')}</option>
+              <option value="manual">{t('Manual', '手动编写')}</option>
+              <option value="native_import">{t('Native Imports', '原生导入')}</option>
             </select>
 
             <button
@@ -335,7 +352,9 @@ export function MemoryHub({ onOpenSession, refreshSignal }: MemoryHubProps) {
               className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-medium text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-50"
             >
               <FolderSync className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? 'Syncing...' : 'Sync & Import Native'}
+              <span>
+                {syncing ? t('Syncing...', '同步中...') : t('Sync & Import Native', '同步与导入原生记忆')}
+              </span>
             </button>
 
             <button
@@ -344,7 +363,7 @@ export function MemoryHub({ onOpenSession, refreshSignal }: MemoryHubProps) {
               className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500"
             >
               <Plus className="h-3.5 w-3.5" />
-              New Memory
+              <span>{t('New Memory', '新建记忆')}</span>
             </button>
           </div>
         </div>
@@ -352,7 +371,7 @@ export function MemoryHub({ onOpenSession, refreshSignal }: MemoryHubProps) {
         {/* Native Memory Import Status */}
         <div className="flex flex-wrap items-center gap-2 border-t border-slate-800/80 pt-3">
           <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            Native Memory Sync:
+            {t('Native Memory Sync:', '原生记忆同步:')}
           </span>
           {nativeImports.map((item) => (
             <div
@@ -400,7 +419,9 @@ export function MemoryHub({ onOpenSession, refreshSignal }: MemoryHubProps) {
         {/* Left List */}
         <div className="flex flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-900/50 lg:col-span-5">
           <div className="border-b border-slate-800 px-3.5 py-2.5 text-xs font-medium text-slate-400">
-            Central Markdown Memories ({memories.length})
+            <span key={`memlist-${locale}`}>
+              {`${t('Central Markdown Memories', '中央 Markdown 记忆库')} (${memories.length})`}
+            </span>
           </div>
           <div className="flex-1 divide-y divide-slate-800/70 overflow-y-auto">
             {loading ? (
@@ -547,7 +568,11 @@ export function MemoryHub({ onOpenSession, refreshSignal }: MemoryHubProps) {
                       }`}
                     >
                       <CheckCircle2 className="h-3.5 w-3.5" />
-                      {selectedMemory.reviewed ? 'Reviewed' : 'Approve Draft'}
+                      <span>
+                        {selectedMemory.reviewed
+                          ? t('Reviewed', '已审核')
+                          : t('Approve Draft', '批准草稿')}
+                      </span>
                     </button>
 
                     {editMode ? (
@@ -558,14 +583,14 @@ export function MemoryHub({ onOpenSession, refreshSignal }: MemoryHubProps) {
                           className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500"
                         >
                           <Save className="h-3.5 w-3.5" />
-                          Save
+                          <span>{t('Save', '保存')}</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => setEditMode(false)}
                           className="rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
                         >
-                          Cancel
+                          <span>{t('Cancel', '取消')}</span>
                         </button>
                       </>
                     ) : (
@@ -575,7 +600,7 @@ export function MemoryHub({ onOpenSession, refreshSignal }: MemoryHubProps) {
                         className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/70 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-800"
                       >
                         <Pencil className="h-3.5 w-3.5" />
-                        Edit
+                        <span>{t('Edit', '编辑')}</span>
                       </button>
                     )}
 
