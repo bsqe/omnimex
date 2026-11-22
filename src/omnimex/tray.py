@@ -116,12 +116,18 @@ def find_app_browser_command(url: str) -> list[str] | None:
 
 def build_app_launch_url(base_url: str, config: OmnimexConfig | None = None) -> str:
     """Append a deterministic frontend bundle hash so Edge/Chrome --app windows bypass stale cache."""
+    from omnimex.core.runtime_paths import bundle_dir
+
     clean = base_url.rstrip("/")
     dist_dir = _resolve_static_dist_dir(config) if config is not None else None
     if dist_dir is None:
-        candidate = Path(__file__).resolve().parents[2] / "frontend" / "dist"
-        if candidate.is_dir():
-            dist_dir = candidate
+        for candidate in (
+            bundle_dir() / "frontend" / "dist",
+            Path(__file__).resolve().parents[2] / "frontend" / "dist",
+        ):
+            if candidate.is_dir():
+                dist_dir = candidate
+                break
     if dist_dir is not None:
         index_file = dist_dir / "index.html"
         if index_file.is_file():
@@ -209,6 +215,7 @@ class OmnimexTrayController:
             port=self.port,
             log_level=self.config.app.log_level,
             log_config=None,
+            use_colors=False,
         )
         self.server = uvicorn.Server(uv_cfg)
         self.server_thread = threading.Thread(
@@ -244,7 +251,7 @@ class OmnimexTrayController:
 
         def _run() -> None:
             try:
-                res = svc.scan()
+                res = svc.scan(defer_embeddings=True)
                 self._notify(
                     "Omnimex 扫描完成",
                     f"扫描 {res.scanned_files} 个文件 · 新增 {res.new_sessions} 会话 / {res.new_turns} 轮次",
@@ -347,11 +354,40 @@ def run_tray(
     return controller.run()
 
 
-def main() -> None:
-    """GUI script entrypoint for ``omnimex-tray.exe``."""
-    repo_cfg = Path(__file__).resolve().parents[2] / "omnimex.toml"
-    cfg = load_config(repo_cfg if repo_cfg.is_file() else None)
-    raise SystemExit(run_tray(config=cfg))
+def main(argv: list[str] | None = None) -> None:
+    """GUI script entrypoint for ``Omnimex.exe`` / ``omnimex-tray.exe``."""
+    import argparse
+    import multiprocessing
+
+    from omnimex.core.runtime_paths import default_user_data_dir, is_frozen
+
+    multiprocessing.freeze_support()
+
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--host", default=None)
+    parser.add_argument("--port", type=int, default=None)
+    parser.add_argument("--no-open", action="store_true")
+    parser.add_argument("--no-scan", action="store_true")
+    parser.add_argument("--no-watch", action="store_true")
+    args, _ = parser.parse_known_args(argv)
+
+    if is_frozen():
+        ensure_windowless_stdio(default_user_data_dir() / "data" / "omnimex-tray.log")
+        cfg = load_config()
+    else:
+        repo_cfg = Path(__file__).resolve().parents[2] / "omnimex.toml"
+        cfg = load_config(repo_cfg if repo_cfg.is_file() else None)
+
+    raise SystemExit(
+        run_tray(
+            config=cfg,
+            host=args.host,
+            port=args.port,
+            scan_on_startup=False if args.no_scan else None,
+            watch=False if args.no_watch else None,
+            open_on_start=not args.no_open,
+        )
+    )
 
 
 __all__ = [

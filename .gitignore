@@ -26,3 +26,5 @@ data/
 *.sqlite-wal
 .env
 omnimex.local.toml
+dist/
+build/

@@ -760,6 +760,22 @@ class OmnimexDB:
             )
 
         with self._lock, self._conn:
+            # Skip any turn_id deleted concurrently by a foreground session update.
+            turn_ids = [row[0] for row in rows]
+            valid_ids: set[str] = set()
+            for start in range(0, len(turn_ids), 500):
+                chunk_ids = turn_ids[start : start + 500]
+                placeholders = ",".join("?" for _ in chunk_ids)
+                valid_rows = self._conn.execute(
+                    f"SELECT id FROM turns WHERE id IN ({placeholders})",
+                    chunk_ids,
+                ).fetchall()
+                valid_ids.update(str(r["id"]) for r in valid_rows)
+
+            filtered_rows = [row for row in rows if row[0] in valid_ids]
+            if not filtered_rows:
+                return 0
+
             self._conn.executemany(
                 """
                 INSERT INTO turn_embeddings (
@@ -774,9 +790,45 @@ class OmnimexDB:
                     norm = excluded.norm,
                     updated_at = excluded.updated_at
                 """,
-                rows,
+                filtered_rows,
             )
-        return len(rows)
+        return len(filtered_rows)
+
+    def list_session_ids_needing_embeddings(
+        self,
+        model: str,
+        dimension: int,
+        *,
+        limit: int | None = None,
+    ) -> list[str]:
+        """Return session IDs missing embeddings, prioritizing user-facing recent sessions."""
+        sql = """
+            SELECT s.id
+            FROM sessions s
+            WHERE EXISTS (
+                SELECT 1
+                FROM turns t
+                LEFT JOIN turn_embeddings te
+                    ON te.turn_id = t.id AND te.model = ? AND te.dimension = ?
+                WHERE t.session_id = s.id AND te.turn_id IS NULL
+            )
+            ORDER BY
+                CASE
+                    WHEN EXISTS (
+                        SELECT 1 FROM turns u WHERE u.session_id = s.id AND u.role = 'user'
+                    ) THEN 0
+                    ELSE 1
+                END ASC,
+                COALESCE(s.updated_at, s.started_at, s.created_at) DESC,
+                s.turn_count ASC
+        """
+        params: list[Any] = [model, dimension]
+        if limit is not None and limit > 0:
+            sql += " LIMIT ?"
+            params.append(limit)
+        with self.read_connection() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [str(r["id"]) for r in rows]
 
     def index_session_embeddings(
         self,
@@ -785,6 +837,7 @@ class OmnimexDB:
         *,
         force: bool = False,
         batch_size: int = 32,
+        stop_event: threading.Event | None = None,
     ) -> int:
         """Compute and persist vector embeddings for turns in ``session_id``."""
         with self._lock:
@@ -815,9 +868,13 @@ class OmnimexDB:
 
         indexed = 0
         for start in range(0, len(rows), batch_size):
+            if stop_event is not None and stop_event.is_set():
+                break
             chunk = rows[start : start + batch_size]
             texts = [str(r["search_text"] or r["content"] or "") for r in chunk]
             vectors = embedder.embed_texts(texts)
+            if stop_event is not None and stop_event.is_set():
+                break
             batch_items = [
                 (str(r["id"]), session_id, embedder.model_name, vec)
                 for r, vec in zip(chunk, vectors, strict=True)

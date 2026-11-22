@@ -8,6 +8,28 @@
 
 ---
 
+## 实机演示
+
+> 以下界面均连接本地实时 FastAPI 后端（`1440×900` 深色界面，原生中英文切换），演示数据已统一脱敏。
+
+### 搜索与会话（混合检索 · 推理过程 · 工具调用追溯）
+
+![Omnimex 搜索与会话界面](docs/images/search-explorer.png)
+
+### 中央 Markdown 记忆中心（四类知识沉淀 · 人工审核与原生只读导入）
+
+![Omnimex 中央 Markdown 记忆中心](docs/images/memory-hub.png)
+
+### 跨 Agent 交接工作台（Token 预算裁剪 · 密钥脱敏 · 一键导出交接简报）
+
+![Omnimex 跨 Agent 交接工作台](docs/images/handoff-workbench.png)
+
+### 适配器健康状态与蒸馏器参数（11 类工具发现 · 零费用 / Ollama / OpenAI 切换）
+
+![Omnimex 适配器健康与统计面板](docs/images/adapters-stats.png)
+
+---
+
 ## 1. 支持的 11 个主流 Coding Agent 适配器
 
 | Agent Slug | 名称 | 默认本地发现路径 / 存储形式 | 原生记忆只读导入 |

@@ -91,7 +91,8 @@ function AppShell() {
       if (
         evt.type === 'scan.completed' ||
         evt.type === 'memory.synced' ||
-        evt.type === 'distill.completed'
+        evt.type === 'distill.completed' ||
+        evt.type === 'embedding.completed'
       ) {
         scheduleListRefresh();
       }
@@ -198,7 +199,13 @@ function AppShell() {
                 className="hidden items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1 font-mono text-[11px] text-slate-400 xl:inline-flex"
               >
                 <Radio className="h-3 w-3 text-emerald-400" />
-                <span>{lastEvent.type}</span>
+                <span>
+                  {lastEvent.type === 'embedding.progress' &&
+                  typeof lastEvent.data.completed_sessions === 'number' &&
+                  typeof lastEvent.data.total_sessions === 'number'
+                    ? `${lastEvent.type} (${lastEvent.data.completed_sessions}/${lastEvent.data.total_sessions})`
+                    : lastEvent.type}
+                </span>
               </span>
             )}
 

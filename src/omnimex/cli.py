@@ -42,6 +42,11 @@ def _echo_json(payload: Any) -> None:
 
 
 def _default_skill_path() -> Path:
+    from omnimex.core.runtime_paths import bundle_dir
+
+    bundled = bundle_dir() / "skills" / "omnimex-memory" / "SKILL.md"
+    if bundled.is_file():
+        return bundled
     return Path(__file__).resolve().parents[2] / "skills" / "omnimex-memory" / "SKILL.md"
 
 
@@ -106,6 +111,13 @@ def scan(
     import_native: Annotated[
         bool, typer.Option("--native-import/--no-native-import", help="Import native agent memories read-only.")
     ] = True,
+    fast: Annotated[
+        bool,
+        typer.Option(
+            "--fast/--sync-embeddings",
+            help="Skip waiting for turn vector embeddings (FTS5 + distill complete first).",
+        ),
+    ] = False,
     config: Annotated[Path | None, typer.Option("--config", "-c", help="Path to omnimex.toml.")] = None,
     json_output: Annotated[bool, typer.Option("--json", help="Emit JSON output.")] = False,
 ) -> None:
@@ -117,6 +129,7 @@ def scan(
             full_rescan=full,
             distill=distill,
             import_native=import_native,
+            defer_embeddings=fast,
         )
         payload = asdict(res)
         if json_output:
@@ -156,7 +169,7 @@ def watch(
     memory_watcher: CentralMemoryWatcher | None = None
     try:
         if initial_scan:
-            res = service.scan()
+            res = service.scan(defer_embeddings=True)
             typer.echo(
                 f"Initial scan: files={res.scanned_files}, new_sessions={res.new_sessions}, new_turns={res.new_turns}"
             )
@@ -358,6 +371,15 @@ def serve(
     cfg = load_config(config) if config is not None else load_config()
     bind_host = host or cfg.app.host
     bind_port = port or cfg.app.port
+    import sys
+
+    from omnimex.core.runtime_paths import is_frozen
+
+    frozen = is_frozen()
+    if reload and frozen:
+        typer.echo("Reload mode is unavailable in packaged builds; running without reload.")
+        reload = False
+
     if reload:
         import os
 
@@ -379,11 +401,17 @@ def serve(
         start_watcher=watch,
         scan_on_startup=scan_on_startup,
     )
+    uvicorn_kwargs: dict[str, object] = {
+        "host": bind_host,
+        "port": bind_port,
+        "log_level": cfg.app.log_level,
+    }
+    if frozen or sys.stderr is None or sys.stdout is None:
+        uvicorn_kwargs["use_colors"] = False
+        uvicorn_kwargs["log_config"] = None
     uvicorn.run(
         fastapi_app,
-        host=bind_host,
-        port=bind_port,
-        log_level=cfg.app.log_level,
+        **uvicorn_kwargs,
     )
 
 
@@ -518,4 +546,7 @@ def setup(
 
 
 if __name__ == "__main__":
+    import multiprocessing
+
+    multiprocessing.freeze_support()
     app()

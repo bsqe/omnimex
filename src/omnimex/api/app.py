@@ -21,6 +21,7 @@ from omnimex import __version__
 from omnimex.api.routes import router as api_router
 from omnimex.api.schemas import ApiError
 from omnimex.core.config import OmnimexConfig, load_config
+from omnimex.core.runtime_paths import bundle_dir
 from omnimex.services.ingest import IngestService
 
 logger = logging.getLogger(__name__)
@@ -64,7 +65,7 @@ def _status_to_code(status_code: int) -> str:
 
 def _resolve_static_dist_dir(config: OmnimexConfig) -> Path | None:
     repo_root = Path(__file__).resolve().parents[3]
-    for root in (config.root_dir, repo_root):
+    for root in (config.root_dir, bundle_dir(), repo_root):
         candidate = root / "frontend" / "dist"
         if candidate.is_dir() and (candidate / "index.html").is_file():
             return candidate
@@ -177,7 +178,7 @@ def create_app(
                 if stop_bg.is_set():
                     return
                 try:
-                    service.scan()
+                    service.scan(defer_embeddings=True)
                 except Exception:  # noqa: BLE001
                     logger.exception("Background startup scan failed")
 
@@ -198,8 +199,10 @@ def create_app(
             service.events.close()
             if owns_service:
                 service.close()
-            elif should_watch:
-                service.stop_watcher()
+            else:
+                if should_watch:
+                    service.stop_watcher()
+                service.stop_embedding_backfill(timeout=1.5)
             if startup_thread is not None and startup_thread.is_alive():
                 startup_thread.join(timeout=1.5)
 

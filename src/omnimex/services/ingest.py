@@ -279,6 +279,10 @@ class IngestService:
         self.events = EventBroker()
         self._native_importer = native_importer
         self._ingest_lock = threading.RLock()
+        self._embed_lock = threading.Lock()
+        self._embed_stop = threading.Event()
+        self._embed_thread: threading.Thread | None = None
+        self._embed_rescan = False
         self._watcher: SessionWatcher | None = None
         self._last_scan_at: dict[str, datetime] = {}
         self._last_native_imports: list[NativeImportSourceStatus] = []
@@ -311,10 +315,22 @@ class IngestService:
         with self._lock:
             self._closed = False
 
+    def stop_embedding_backfill(self, timeout: float = 2.0) -> None:
+        """Signal any background vector backfill worker to stop and wait briefly."""
+        self._embed_stop.set()
+        with self._embed_lock:
+            thread = self._embed_thread
+        if thread is not None and thread.is_alive() and thread is not threading.current_thread():
+            thread.join(timeout=timeout)
+        with self._embed_lock:
+            if self._embed_thread is thread and (thread is None or not thread.is_alive()):
+                self._embed_thread = None
+
     def close(self) -> None:
-        """Stop background watchers, wake SSE subscribers, and close owned DB resources."""
+        """Stop background watchers, embedding backfill, SSE streams, and owned DB resources."""
         self.events.close()
         self.stop_watcher()
+        self.stop_embedding_backfill(timeout=2.0)
         if self._owns_db:
             self.db.close()
 
@@ -353,6 +369,16 @@ class IngestService:
             windsurf_roots=windsurf_roots,
         )
 
+    @staticmethod
+    def _sort_paths_newest_first(paths: Sequence[Path]) -> list[Path]:
+        def _mtime_ns(path: Path) -> int:
+            try:
+                return path.stat().st_mtime_ns
+            except OSError:
+                return 0
+
+        return sorted(paths, key=_mtime_ns, reverse=True)
+
     def _ingest_single_file(
         self,
         adapter: BaseAgentAdapter,
@@ -361,6 +387,7 @@ class IngestService:
         full_rescan: bool,
         should_distill: bool,
         errors: list[ScanError],
+        embed: bool = True,
     ) -> tuple[int, int, int, int]:
         """Parse and store one source file incrementally, returning turn/session deltas."""
         cursor = None if full_rescan else self.db.get_cursor(file_path)
@@ -392,7 +419,8 @@ class IngestService:
                 session,
                 replace_turns=not parse_result.is_append_only,
             )
-            self.db.index_session_embeddings(stored.id, self.embedder, force=full_rescan)
+            if embed:
+                self.db.index_session_embeddings(stored.id, self.embedder, force=full_rescan)
 
             if prev_session is None:
                 new_sessions += 1
@@ -432,6 +460,88 @@ class IngestService:
         self.db.upsert_cursor(parse_result.cursor)
         return new_sessions, new_turns, updated_sessions, distilled_memories
 
+    def run_embedding_backfill(self, *, stop_event: threading.Event | None = None) -> int:
+        """Compute missing turn vector embeddings, prioritizing recent user sessions."""
+        session_ids = self.db.list_session_ids_needing_embeddings(
+            self.embedder.model_name,
+            self.embedder.dimension,
+        )
+        if not session_ids:
+            return 0
+
+        total_sessions = len(session_ids)
+        completed_sessions = 0
+        indexed_turns = 0
+        self.events.publish("embedding.started", {"pending_sessions": total_sessions})
+
+        for sid in session_ids:
+            if stop_event is not None and stop_event.is_set():
+                break
+            try:
+                added = self.db.index_session_embeddings(
+                    sid,
+                    self.embedder,
+                    stop_event=stop_event,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Background embedding skipped for %s: %s", sid, exc)
+                added = 0
+            completed_sessions += 1
+            indexed_turns += added
+            self.events.publish(
+                "embedding.progress",
+                {
+                    "session_id": sid,
+                    "completed_sessions": completed_sessions,
+                    "total_sessions": total_sessions,
+                    "indexed_turns": indexed_turns,
+                },
+            )
+
+        stopped = bool(stop_event is not None and stop_event.is_set())
+        self.events.publish(
+            "embedding.completed",
+            {
+                "completed_sessions": completed_sessions,
+                "total_sessions": total_sessions,
+                "indexed_turns": indexed_turns,
+                "stopped": stopped,
+            },
+        )
+        return indexed_turns
+
+    def schedule_embedding_backfill(self) -> threading.Thread:
+        """Start (or wake) the serialized background vector backfill worker."""
+        with self._embed_lock:
+            if self._embed_thread is not None and self._embed_thread.is_alive():
+                self._embed_rescan = True
+                return self._embed_thread
+
+            self._embed_stop.clear()
+            self._embed_rescan = False
+
+            def _worker() -> None:
+                while not self._embed_stop.is_set():
+                    try:
+                        self.run_embedding_backfill(stop_event=self._embed_stop)
+                    except Exception:  # noqa: BLE001
+                        logger.exception("Background embedding worker failed")
+                    with self._embed_lock:
+                        if self._embed_rescan and not self._embed_stop.is_set():
+                            self._embed_rescan = False
+                            continue
+                        self._embed_thread = None
+                        break
+
+            thread = threading.Thread(
+                target=_worker,
+                name="omnimex-embedding-backfill",
+                daemon=True,
+            )
+            self._embed_thread = thread
+            thread.start()
+            return thread
+
     def scan(
         self,
         adapters: Sequence[str] | None = None,
@@ -440,9 +550,10 @@ class IngestService:
         distill: bool | None = None,
         distill_heuristic: bool | None = None,
         import_native: bool = True,
+        defer_embeddings: bool = False,
         progress_cb: Callable[[dict[str, Any]], None] | None = None,
     ) -> ScanResult:
-        """Scan configured adapters incrementally, index embeddings, and optionally distill."""
+        """Scan configured adapters incrementally, index FTS5 (+ vectors), and optionally distill."""
         started = time.perf_counter()
         job_id = f"scan_{utc_now().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:6]}"
         should_distill = (
@@ -467,7 +578,7 @@ class IngestService:
             for adapter in target_adapters:
                 prev_err_count = len(adapter.last_errors)
                 try:
-                    files = adapter.detect_sources()
+                    files = self._sort_paths_newest_first(adapter.detect_sources())
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("Source discovery failed for %s: %s", adapter.agent_id, exc)
                     adapter.last_errors.append(str(exc))
@@ -491,6 +602,7 @@ class IngestService:
                             full_rescan=full_rescan,
                             should_distill=should_distill,
                             errors=result.errors,
+                            embed=not defer_embeddings,
                         )
                         result.new_sessions += ns
                         result.new_turns += nt
@@ -534,9 +646,13 @@ class IngestService:
                     "new_turns": result.new_turns,
                     "errors_count": len(result.errors),
                     "duration_ms": result.duration_ms,
+                    "deferred_embeddings": defer_embeddings,
                 },
             )
-            return result
+
+        if defer_embeddings:
+            self.schedule_embedding_backfill()
+        return result
 
     def handle_watch_event(self, event: WatchEvent) -> ScanResult | None:
         """Process a single debounced Watchdog event incrementally."""

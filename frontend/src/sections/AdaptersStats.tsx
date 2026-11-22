@@ -114,7 +114,11 @@ export function AdaptersStats({ refreshSignal, onDataChanged }: AdaptersStatsPro
     setScanning(true);
     setNotice(null);
     try {
-      const res = await apiClient.triggerScan({ full_rescan: fullRescan, distill: true });
+      const res = await apiClient.triggerScan({
+        full_rescan: fullRescan,
+        distill: true,
+        defer_embeddings: true,
+      });
       setNotice({
         kind: 'ok',
         text: `Scan complete in ${res.duration_ms}ms · ${res.scanned_files} files scanned · ${res.new_sessions} new, ${res.updated_sessions} updated sessions.`,

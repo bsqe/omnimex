@@ -1097,6 +1097,9 @@ export class OmnimexClient {
       'memory.synced',
       'distill.progress',
       'distill.completed',
+      'embedding.started',
+      'embedding.progress',
+      'embedding.completed',
     ];
 
     const handlers: Array<[string, EventListener]> = eventTypes.map((evtType) => {

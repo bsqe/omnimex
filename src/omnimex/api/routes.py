@@ -513,11 +513,12 @@ async def trigger_scan(
     if _wants_sse(request, stream):
         return await _stream_job_sse(
             svc,
-            topics=["scan", "session", "error"],
+            topics=["scan", "session", "embedding", "error"],
             run_fn=lambda: svc.scan(
                 adapters=opts.agents,
                 full_rescan=opts.full_rescan,
                 distill=opts.distill,
+                defer_embeddings=opts.defer_embeddings,
             ),
         )
 
@@ -526,6 +527,7 @@ async def trigger_scan(
         adapters=opts.agents,
         full_rescan=opts.full_rescan,
         distill=opts.distill,
+        defer_embeddings=opts.defer_embeddings,
     )
     return ScanResponse(
         job_id=res.job_id,

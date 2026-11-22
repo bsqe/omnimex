@@ -10,6 +10,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from omnimex.core.redaction import redact_config, redact_url
+from omnimex.core.runtime_paths import bundle_dir, default_user_data_dir, exe_dir, is_frozen
 
 EmbeddingProviderKind = Literal["auto", "fastembed", "offline_hash"]
 DistillerProviderKind = Literal["heuristic", "ollama", "openai_compatible"]
@@ -224,15 +225,36 @@ def load_config(
     root_dir: str | Path | None = None,
 ) -> OmnimexConfig:
     """Load OmnimexConfig from omnimex.toml, optional omnimex.local.toml, and env vars."""
+    frozen = is_frozen()
     resolved_file: Path | None = None
+    explicit_root: Path | None = Path(root_dir).expanduser().resolve() if root_dir is not None else None
+
     if config_path is not None:
         resolved_file = Path(config_path).expanduser().resolve()
+    elif frozen and explicit_root is None:
+        if env_path := os.getenv("OMNIMEX_CONFIG"):
+            candidate = Path(env_path).expanduser().resolve()
+            if candidate.is_file():
+                resolved_file = candidate
+        if resolved_file is None:
+            user_data = default_user_data_dir()
+            user_cfg = user_data / "omnimex.toml"
+            cwd = Path.cwd().resolve()
+            if user_cfg.is_file():
+                resolved_file = user_cfg
+            elif cwd != exe_dir() and (cwd / "omnimex.toml").is_file():
+                resolved_file = cwd / "omnimex.toml"
+            else:
+                bundled_cfg = bundle_dir() / "omnimex.toml"
+                if bundled_cfg.is_file():
+                    resolved_file = bundled_cfg
+                explicit_root = user_data
     else:
-        resolved_file = find_config_file(Path(root_dir) if root_dir else None)
+        resolved_file = find_config_file(explicit_root)
 
     resolved_root = (
-        Path(root_dir).expanduser().resolve()
-        if root_dir is not None
+        explicit_root
+        if explicit_root is not None
         else (resolved_file.parent if resolved_file is not None else Path.cwd().resolve())
     )
 

@@ -183,6 +183,7 @@ class ScanRequest(BaseModel):
     agents: list[str] | None = None
     full_rescan: bool = False
     distill: bool | None = None
+    defer_embeddings: bool = False
 
 
 class ScanErrorSchema(BaseModel):

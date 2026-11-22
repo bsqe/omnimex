@@ -246,6 +246,7 @@ export interface ScanRequest {
   agents?: AgentId[];
   full_rescan?: boolean;
   distill?: boolean;
+  defer_embeddings?: boolean;
 }
 
 export interface ScanResponse {
@@ -339,6 +340,9 @@ export interface OmnimexEvent {
     | 'memory.synced'
     | 'distill.progress'
     | 'distill.completed'
+    | 'embedding.started'
+    | 'embedding.progress'
+    | 'embedding.completed'
     | 'heartbeat';
   data: Record<string, unknown>;
   receivedAt: string;

@@ -15,6 +15,7 @@ from typing import Any, Protocol, runtime_checkable
 import numpy as np
 
 from omnimex.core.config import EmbeddingConfig
+from omnimex.core.runtime_paths import bundle_dir, is_frozen
 
 logger = logging.getLogger(__name__)
 
@@ -242,6 +243,14 @@ class FastEmbedLocalEmbedder:
     def dimension(self) -> int:
         return self._dimension
 
+    _MAX_EMBED_CHARS = 4000
+
+    @classmethod
+    def _truncate_text(cls, text: str) -> str:
+        if len(text) <= cls._MAX_EMBED_CHARS:
+            return text
+        return text[: cls._MAX_EMBED_CHARS]
+
     @property
     def is_fallback(self) -> bool:
         return False
@@ -249,15 +258,17 @@ class FastEmbedLocalEmbedder:
     def embed_texts(self, texts: Sequence[str]) -> list[list[float]]:
         if not texts:
             return []
-        vectors = list(self._model.embed(list(texts), batch_size=self._batch_size))
+        prepared = [self._truncate_text(str(t)) for t in texts]
+        vectors = list(self._model.embed(prepared, batch_size=self._batch_size))
         return [l2_normalize(np.asarray(v, dtype=np.float32)).tolist() for v in vectors]
 
     def embed_query(self, text: str) -> list[float]:
+        prepared = self._truncate_text(str(text))
         if hasattr(self._model, "query_embed"):
-            vectors = list(self._model.query_embed(text))
+            vectors = list(self._model.query_embed(prepared))
             if vectors:
                 return l2_normalize(np.asarray(vectors[0], dtype=np.float32)).tolist()
-        return self.embed_texts([text])[0]
+        return self.embed_texts([prepared])[0]
 
     async def aembed_texts(self, texts: Sequence[str]) -> list[list[float]]:
         return await asyncio.to_thread(self.embed_texts, texts)
@@ -281,6 +292,21 @@ def create_embedder(
     cfg = config or EmbeddingConfig()
     effective_allow_download = cfg.allow_download if allow_download is None else allow_download
     resolved_cache = cfg.resolve_cache_dir(root_dir or Path.cwd())
+
+    if (
+        is_frozen()
+        and cfg.provider in {"auto", "fastembed"}
+        and not _has_cached_onnx_model(cfg.model, resolved_cache)
+    ):
+        bundled_cache = bundle_dir() / "data" / "fastembed_cache"
+        if _has_cached_onnx_model(cfg.model, bundled_cache):
+            if os.access(bundled_cache, os.W_OK):
+                resolved_cache = bundled_cache
+            elif resolved_cache is not None:
+                import shutil
+
+                resolved_cache.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(bundled_cache, resolved_cache, dirs_exist_ok=True)
 
     if cfg.provider == "offline_hash":
         return OfflineHashEmbedder(dimension=cfg.dimension)

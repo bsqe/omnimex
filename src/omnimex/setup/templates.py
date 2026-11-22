@@ -25,8 +25,17 @@ Use the `omnimex` MCP server with **progressive disclosure** (low token cost):
 
 def resolve_omnimex_command(explicit_command: str | None = None) -> tuple[str, list[str]]:
     """Resolve the safest executable + args to launch ``omnimex mcp``."""
+    from omnimex.core.runtime_paths import exe_dir, is_frozen
+
     if explicit_command:
         return explicit_command, ["mcp"]
+
+    if is_frozen():
+        cli_name = "omnimex-cli.exe" if sys.platform == "win32" else "omnimex-cli"
+        frozen_cli = exe_dir() / cli_name
+        if frozen_cli.is_file():
+            return str(frozen_cli), ["mcp"]
+        return sys.executable, ["mcp"]
 
     venv_exe = Path(sys.executable).parent / (
         "omnimex.exe" if sys.platform == "win32" else "omnimex"
