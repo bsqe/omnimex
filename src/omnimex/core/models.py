@@ -299,6 +299,80 @@ class IngestCursor(BaseModel):
     updated_at: datetime = Field(default_factory=utc_now)
 
 
+SkillInstallTarget = Literal[
+    "antigravity",
+    "claude_code",
+    "codex",
+    "cursor",
+    "gemini_cli",
+    "windsurf",
+]
+
+
+class SkillDraft(BaseModel):
+    """Redacted, structured SKILL.md bundle synthesized from sessions and/or memories."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    slug: str
+    title: str
+    description: str
+    skill_md: str
+    source_session_ids: list[str] = Field(default_factory=list)
+    source_memory_ids: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    workspace: str | None = None
+    provider: str = "heuristic"
+    redacted: bool = True
+    token_estimate: int = Field(default=0, ge=0)
+    generated_at: datetime = Field(default_factory=utc_now)
+
+    @field_validator("workspace", mode="before")
+    @classmethod
+    def _normalize_workspace(cls, value: Any) -> str | None:
+        if value is None or isinstance(value, (str, Path)):
+            return normalize_workspace_path(value)
+        return str(value)
+
+    @field_validator("generated_at", mode="after")
+    @classmethod
+    def _normalize_generated_at(cls, value: datetime) -> datetime:
+        normalized = ensure_utc(value)
+        assert normalized is not None
+        return normalized
+
+
+class SavedSkillSummary(BaseModel):
+    """Metadata and content summary of a curated Skill stored in ``data/skills/``."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    slug: str
+    name: str
+    description: str = ""
+    file_path: str
+    updated_at: datetime
+    token_estimate: int = Field(default=0, ge=0)
+    skill_md: str = ""
+
+
+class SkillInstallEntry(BaseModel):
+    """Installation outcome for one coding-agent skill directory target."""
+
+    target: str
+    path: str
+    status: Literal["created", "updated", "unchanged"]
+    backup_path: str | None = None
+
+
+class SkillInstallResult(BaseModel):
+    """Aggregated outcome from installing a packaged SKILL.md across agent targets."""
+
+    slug: str
+    installed: list[SkillInstallEntry] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+
+
 __all__ = [
     "AgentId",
     "DistillStatus",
@@ -311,8 +385,13 @@ __all__ = [
     "MemoryOrigin",
     "NormalizedSession",
     "NormalizedTurn",
+    "SavedSkillSummary",
     "SearchHit",
     "SearchMode",
+    "SkillDraft",
+    "SkillInstallEntry",
+    "SkillInstallResult",
+    "SkillInstallTarget",
     "ToolCallRecord",
     "ToolCallStatus",
     "TurnRole",

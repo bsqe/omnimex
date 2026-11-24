@@ -8,6 +8,7 @@ import {
   ChevronUp,
   FolderGit2,
   MessageSquare,
+  PackagePlus,
   RefreshCw,
   RotateCcw,
   Search,
@@ -87,6 +88,7 @@ interface SearchExplorerProps {
   highlightTurnIndex: number | null;
   onSelectSession: (sessionId: string, turnIndex?: number | null) => void;
   onCreateHandoff: (sessionId: string) => void;
+  onPackageSkill?: (sessionId: string) => void;
   refreshSignal: number;
   listRefreshSignal?: number;
   hasPendingSessionUpdate?: boolean;
@@ -607,6 +609,7 @@ export function SearchExplorer({
   highlightTurnIndex,
   onSelectSession,
   onCreateHandoff,
+  onPackageSkill,
   refreshSignal,
   listRefreshSignal = 0,
   hasPendingSessionUpdate = false,
@@ -1575,6 +1578,17 @@ export function SearchExplorer({
                       <ArrowRightLeft className="h-3.5 w-3.5" />
                       <span>{t('Create Handoff', '生成交接简报')}</span>
                     </button>
+
+                    {onPackageSkill && (
+                      <button
+                        type="button"
+                        onClick={() => onPackageSkill(detail.id)}
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/25"
+                      >
+                        <PackagePlus className="h-3.5 w-3.5" />
+                        <span>{t('Package Skill', '打包为 Skill')}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

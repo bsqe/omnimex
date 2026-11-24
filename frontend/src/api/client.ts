@@ -22,6 +22,7 @@ import type {
   NativeMemoryImportStatus,
   NormalizedSession,
   OmnimexEvent,
+  SavedSkillSummary,
   ScanRequest,
   ScanResponse,
   SearchHit,
@@ -30,6 +31,12 @@ import type {
   SessionDetailResponse,
   SessionsResponse,
   SessionTurnResponse,
+  SkillDraft,
+  SkillGenerateRequest,
+  SkillInstallRequest,
+  SkillInstallResult,
+  SkillListResponse,
+  SkillSaveRequest,
   StatsResponse,
   SyncMemoriesPayload,
   SyncMemoriesResponse,
@@ -113,6 +120,7 @@ class MockStore {
   nativeImports: NativeMemoryImportStatus[] = clone(INITIAL_NATIVE_IMPORTS);
   adapters: AdapterHealth[] = clone(INITIAL_ADAPTERS);
   distiller: DistillerSettings = clone(INITIAL_DISTILLER);
+  skills: SavedSkillSummary[] = [];
 
   search(params: SearchParams): SearchResponse {
     const q = (params.q ?? '').trim().toLowerCase();
@@ -579,6 +587,110 @@ class MockStore {
     };
   }
 
+  listSkills(): SkillListResponse {
+    return {
+      total: this.skills.length,
+      skills: clone(this.skills),
+    };
+  }
+
+  generateSkill(req: SkillGenerateRequest): SkillDraft {
+    const sessIds = req.session_ids ?? [];
+    const memIds = req.memory_ids ?? [];
+    const pickedSessions = this.sessions.filter((s) => sessIds.includes(s.id));
+    const pickedMemories = this.memories.filter((m) => memIds.includes(m.id));
+    const baseTitle =
+      req.name?.trim() ||
+      pickedSessions[0]?.title ||
+      pickedMemories[0]?.title ||
+      'Omnimex Packaged Skill';
+    const slug = slugify(req.name?.trim() || baseTitle);
+    const desc =
+      req.description?.trim() ||
+      `Reusable engineering workflow and guardrails for ${baseTitle}.`;
+    const steps = pickedSessions
+      .flatMap((s) => (s.turns ?? []).slice(-3).map((t) => t.content))
+      .filter(Boolean)
+      .slice(0, 4);
+    const pitfalls = pickedMemories
+      .filter((m) => m.category === 'pitfall')
+      .map((m) => `- **${m.title}**: ${m.content}`);
+    const decisions = pickedMemories
+      .filter((m) => m.category !== 'pitfall')
+      .map((m) => `- **${m.title}**: ${m.content}`);
+    const mdLines = [
+      '---',
+      `name: ${slug}`,
+      `description: "${desc.replace(/"/g, '\\"')}"`,
+      '---',
+      '',
+      `# ${baseTitle}`,
+      '',
+      '## When to Use',
+      `- ${desc}`,
+      '',
+      '## Step-by-Step Workflow',
+      ...(steps.length > 0
+        ? steps.map((s, idx) => `${idx + 1}. ${s.slice(0, 180)}`)
+        : ['1. Inspect relevant workspace files and apply verified constraints before editing.']),
+      '',
+      ...(decisions.length > 0 ? ['## Architectural Decisions & Preferences', ...decisions, ''] : []),
+      ...(pitfalls.length > 0 ? ['## Pitfalls & Guardrails', ...pitfalls, ''] : []),
+    ];
+    const skillMd = mdLines.join('\n').trim() + '\n';
+    return {
+      slug,
+      title: baseTitle,
+      description: desc,
+      skill_md: skillMd,
+      source_session_ids: sessIds,
+      source_memory_ids: memIds,
+      tags: Array.from(new Set(pickedMemories.flatMap((m) => m.tags))).slice(0, 8),
+      workspace: pickedSessions[0]?.workspace ?? pickedMemories[0]?.workspace ?? null,
+      provider: 'heuristic',
+      redacted: true,
+      token_estimate: Math.max(40, Math.round(skillMd.length / 4)),
+      generated_at: new Date().toISOString(),
+    };
+  }
+
+  saveSkill(req: SkillSaveRequest): SavedSkillSummary {
+    const slug = slugify(req.slug);
+    const summary: SavedSkillSummary = {
+      slug,
+      name: slug,
+      description: 'Saved packaged SKILL.md (Demo Store)',
+      file_path: `data/skills/${slug}/SKILL.md`,
+      updated_at: new Date().toISOString(),
+      token_estimate: Math.max(20, Math.round(req.skill_md.length / 4)),
+      skill_md: req.skill_md,
+    };
+    this.skills = [summary, ...this.skills.filter((s) => s.slug !== slug)];
+    return clone(summary);
+  }
+
+  deleteSkill(slug: string): { deleted: boolean; slug: string } {
+    this.skills = this.skills.filter((s) => s.slug !== slug);
+    return { deleted: true, slug };
+  }
+
+  installSkill(req: SkillInstallRequest): SkillInstallResult {
+    const slug = slugify(req.slug);
+    if (req.save_to_archive !== false) {
+      this.saveSkill({ slug, skill_md: req.skill_md });
+    }
+    return {
+      slug,
+      installed: req.targets.map((target) => ({
+        target,
+        path: `~/${target}/skills/${slug}/SKILL.md`,
+        status: 'created',
+        backup_path: null,
+      })),
+      errors: [],
+    };
+  }
+
   listAdapters(): AdaptersResponse {
     const discovered = this.adapters.reduce((acc, a) => acc + a.discovered_files, 0);
     return {
@@ -1036,6 +1148,59 @@ export class OmnimexClient {
     );
   }
 
+  listSkills(): Promise<SkillListResponse> {
+    return this.request<SkillListResponse>('/api/skills', undefined, () =>
+      this.mock.listSkills()
+    );
+  }
+
+  generateSkill(payload: SkillGenerateRequest): Promise<SkillDraft> {
+    return this.request<SkillDraft>(
+      '/api/skills/generate',
+      { method: 'POST', body: JSON.stringify(payload) },
+      () => this.mock.generateSkill(payload)
+    );
+  }
+
+  saveSkill(payload: SkillSaveRequest): Promise<SavedSkillSummary> {
+    return this.request<SavedSkillSummary>(
+      '/api/skills/save',
+      { method: 'POST', body: JSON.stringify(payload) },
+      () => this.mock.saveSkill(payload)
+    );
+  }
+
+  deleteSkill(slug: string): Promise<{ deleted: boolean; slug: string }> {
+    return this.request<{ deleted: boolean; slug: string }>(
+      `/api/skills/${encodeURIComponent(slug)}`,
+      { method: 'DELETE' },
+      () => this.mock.deleteSkill(slug)
+    );
+  }
+
+  installSkill(payload: SkillInstallRequest): Promise<SkillInstallResult> {
+    return this.request<SkillInstallResult>(
+      '/api/skills/install',
+      { method: 'POST', body: JSON.stringify(payload) },
+      () => this.mock.installSkill(payload)
+    );
+  }
+
+  async exportSkillZip(slug: string, skill_md: string): Promise<Blob> {
+    if (this.state.mode === 'demo' || this.state.usingMock) {
+      return new Blob([skill_md], { type: 'text/markdown;charset=utf-8' });
+    }
+    const res = await fetch(`${API_BASE}/api/skills/export`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug, skill_md }),
+    });
+    if (!res.ok) {
+      throw new Error(`Export failed (${res.status})`);
+    }
+    return await res.blob();
+  }
+
   listAdapters(): Promise<AdaptersResponse> {
     return this.request<AdaptersResponse>('/api/adapters', undefined, () =>
       this.mock.listAdapters()
@@ -1100,6 +1265,8 @@ export class OmnimexClient {
       'embedding.started',
       'embedding.progress',
       'embedding.completed',
+      'skill.saved',
+      'skill.installed',
     ];
 
     const handlers: Array<[string, EventListener]> = eventTypes.map((evtType) => {

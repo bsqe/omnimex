@@ -162,6 +162,10 @@ class OmnimexConfig(BaseModel):
         return self.storage.resolve_memories_dir(self.root_dir)
 
     @property
+    def skills_dir(self) -> Path:
+        return self.memories_dir.parent / "skills"
+
+    @property
     def embedding_cache_dir(self) -> Path | None:
         return self.embedding.resolve_cache_dir(self.root_dir)
 

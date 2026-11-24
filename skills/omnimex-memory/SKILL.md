@@ -1,6 +1,6 @@
 ---
 name: omnimex-memory
-description: Progressive cross-agent memory recall, session history search, central Markdown memory capture, and cross-agent handoffs via the Omnimex MCP server. Use before starting non-trivial tasks, after solving tricky bugs or making architectural decisions, and when handing off between coding agents.
+description: Progressive cross-agent memory recall, session history search, central Markdown memory capture, cross-agent handoffs, and experience-to-skill packaging via the Omnimex MCP server. Use before starting non-trivial tasks, after solving tricky bugs or making architectural decisions, and when handing off or packaging reusable workflows into SKILL.md skills.
 ---
 
 # Omnimex Cross-Agent Memory Workflow
@@ -42,3 +42,10 @@ When handing a task off to another agent (e.g., Antigravity -> Claude Code or Co
 
 1. Call `session_handoff(session_id="<id>", target_agent="<target>", include_memories=True, custom_instructions="...")`.
 2. Share the returned redacted Markdown brief so the next agent starts with goal, current state, modified files, decisions, pitfalls, and next steps.
+
+## 4. Packaging Experience into Reusable Skills
+
+When the user asks to turn a solved workflow or set of lessons learned into a reusable Agent Skill:
+
+1. Call `skill_package(session_ids=[...], memory_ids=[...], name="<optional-slug>", save=True, install_targets=["antigravity", "claude_code"])`.
+2. Omnimex synthesizes a redacted, standard `SKILL.md` with YAML frontmatter, step-by-step SOP, architectural decisions, pitfalls, and verification commands.

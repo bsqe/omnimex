@@ -328,6 +328,79 @@ export interface HealthResponse {
   distiller_provider: DistillerProvider;
 }
 
+export type SkillInstallTarget =
+  | 'antigravity'
+  | 'claude_code'
+  | 'codex'
+  | 'cursor'
+  | 'gemini_cli'
+  | 'windsurf';
+
+export interface SkillDraft {
+  slug: string;
+  title: string;
+  description: string;
+  skill_md: string;
+  source_session_ids: string[];
+  source_memory_ids: string[];
+  tags: string[];
+  workspace?: string | null;
+  provider: string;
+  redacted: boolean;
+  token_estimate: number;
+  generated_at: string;
+}
+
+export interface SavedSkillSummary {
+  slug: string;
+  name: string;
+  description: string;
+  file_path: string;
+  updated_at: string;
+  token_estimate: number;
+  skill_md: string;
+}
+
+export interface SkillInstallEntry {
+  target: string;
+  path: string;
+  status: 'created' | 'updated' | 'unchanged';
+  backup_path?: string | null;
+}
+
+export interface SkillInstallResult {
+  slug: string;
+  installed: SkillInstallEntry[];
+  errors: string[];
+}
+
+export interface SkillGenerateRequest {
+  session_ids?: string[];
+  memory_ids?: string[];
+  name?: string;
+  description?: string;
+  custom_instructions?: string;
+  use_llm?: boolean;
+}
+
+export interface SkillSaveRequest {
+  slug: string;
+  skill_md: string;
+}
+
+export interface SkillInstallRequest {
+  slug: string;
+  skill_md: string;
+  targets: SkillInstallTarget[];
+  custom_dir?: string;
+  save_to_archive?: boolean;
+}
+
+export interface SkillListResponse {
+  total: number;
+  skills: SavedSkillSummary[];
+}
+
 export interface OmnimexEvent {
   type:
     | 'connected'
@@ -343,6 +416,8 @@ export interface OmnimexEvent {
     | 'embedding.started'
     | 'embedding.progress'
     | 'embedding.completed'
+    | 'skill.saved'
+    | 'skill.installed'
     | 'heartbeat';
   data: Record<string, unknown>;
   receivedAt: string;

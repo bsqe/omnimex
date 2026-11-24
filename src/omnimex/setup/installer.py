@@ -166,7 +166,8 @@ def _merge_rules_markdown(target_path: Path) -> str:
     return f"{raw}{sep}{OMNIMEX_AGENT_RULES_SNIPPET}"
 
 
-def _write_with_backup(target_path: Path, content: str) -> Path | None:
+def write_file_with_backup(target_path: Path, content: str) -> Path | None:
+    """Write text atomically to *target_path*, creating a timestamped .bak if it exists."""
     target_path.parent.mkdir(parents=True, exist_ok=True)
     backup_path: Path | None = None
     if target_path.is_file():
@@ -174,6 +175,9 @@ def _write_with_backup(target_path: Path, content: str) -> Path | None:
         shutil.copy2(target_path, backup_path)
     target_path.write_text(content, encoding="utf-8")
     return backup_path
+
+
+_write_with_backup = write_file_with_backup
 
 
 def _plan_or_apply_file(
@@ -316,4 +320,5 @@ __all__ = [
     "default_client_config_path",
     "export_agent_rules",
     "install_skill",
+    "write_file_with_backup",
 ]

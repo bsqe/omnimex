@@ -24,6 +24,10 @@
 
 ![Omnimex 跨 Agent 交接工作台](docs/images/handoff-workbench.png)
 
+### Skill 工坊（经验沉淀为可复用 `SKILL.md` · 导出 `.zip` · 一键安装到各 Agent）
+
+![Omnimex Skill 工坊](docs/images/skill-forge.png)
+
 ### 适配器健康状态与蒸馏器参数（11 类工具发现 · 零费用 / Ollama / OpenAI 切换）
 
 ![Omnimex 适配器健康与统计面板](docs/images/adapters-stats.png)

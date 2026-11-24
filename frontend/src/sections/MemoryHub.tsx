@@ -2,15 +2,18 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   BookOpen,
   CheckCircle2,
+  CheckSquare,
   Clock,
   ExternalLink,
   FileCode2,
   FolderSync,
+  PackagePlus,
   Pencil,
   Plus,
   Save,
   Search,
   Sparkles,
+  Square,
   Trash2,
   X,
 } from 'lucide-react';
@@ -28,6 +31,7 @@ import { useLocale } from '../utils/i18n';
 
 interface MemoryHubProps {
   onOpenSession: (sessionId: string, turnIndex?: number | null) => void;
+  onPackageSkill?: (memoryIds: string[]) => void;
   refreshSignal: number;
 }
 
@@ -83,7 +87,7 @@ function OriginDistillBadge({ card }: { card: MemoryCard }) {
   );
 }
 
-export function MemoryHub({ onOpenSession, refreshSignal }: MemoryHubProps) {
+export function MemoryHub({ onOpenSession, onPackageSkill, refreshSignal }: MemoryHubProps) {
   const { locale, isZh, t } = useLocale();
   const [memories, setMemories] = useState<MemoryCard[]>([]);
   const [nativeImports, setNativeImports] = useState<NativeMemoryImportStatus[]>([]);
@@ -99,6 +103,7 @@ export function MemoryHub({ onOpenSession, refreshSignal }: MemoryHubProps) {
   const [searchText, setSearchText] = useState('');
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pickedForSkill, setPickedForSkill] = useState<string[]>([]);
   const [editMode, setEditMode] = useState(false);
   const [draftTitle, setDraftTitle] = useState('');
   const [draftCategory, setDraftCategory] = useState<MemoryCategory>('decision');
@@ -418,10 +423,31 @@ export function MemoryHub({ onOpenSession, refreshSignal }: MemoryHubProps) {
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-12">
         {/* Left List */}
         <div className="flex flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-900/50 lg:col-span-5">
-          <div className="border-b border-slate-800 px-3.5 py-2.5 text-xs font-medium text-slate-400">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-3.5 py-2.5 text-xs font-medium text-slate-400">
             <span key={`memlist-${locale}`}>
               {`${t('Central Markdown Memories', '中央 Markdown 记忆库')} (${memories.length})`}
             </span>
+            {onPackageSkill && pickedForSkill.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => onPackageSkill(pickedForSkill)}
+                  className="inline-flex items-center gap-1 rounded-md border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-200 hover:bg-emerald-500/25"
+                >
+                  <PackagePlus className="h-3 w-3" />
+                  <span>
+                    {isZh ? `打包已选 (${pickedForSkill.length}) 为 Skill` : `Package (${pickedForSkill.length})`}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPickedForSkill([])}
+                  className="text-[11px] text-slate-500 hover:text-slate-300"
+                >
+                  {t('Clear', '清空')}
+                </button>
+              </div>
+            )}
           </div>
           <div className="flex-1 divide-y divide-slate-800/70 overflow-y-auto">
             {loading ? (
@@ -433,44 +459,69 @@ export function MemoryHub({ onOpenSession, refreshSignal }: MemoryHubProps) {
             ) : (
               memories.map((card) => {
                 const selected = card.id === selectedId;
+                const picked = pickedForSkill.includes(card.id);
                 return (
-                  <button
+                  <div
                     key={card.id}
-                    type="button"
-                    onClick={() => setSelectedId(card.id)}
-                    className={`w-full p-3.5 text-left transition-colors hover:bg-slate-800/40 ${
+                    className={`flex items-start gap-2 p-3.5 transition-colors hover:bg-slate-800/40 ${
                       selected ? 'bg-indigo-500/10 ring-1 ring-inset ring-indigo-500/40' : ''
                     }`}
                   >
-                    <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-                      <span
-                        className={`rounded border px-2 py-0.5 text-[10px] font-semibold uppercase ${
-                          CATEGORY_META[card.category].badgeClass
-                        }`}
+                    {onPackageSkill && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPickedForSkill((prev) =>
+                            prev.includes(card.id)
+                              ? prev.filter((id) => id !== card.id)
+                              : [...prev, card.id]
+                          )
+                        }
+                        title={t('Select to package into Skill', '勾选一起打包成 Skill')}
+                        className="mt-0.5 shrink-0 text-slate-500 hover:text-emerald-300"
                       >
-                        {CATEGORY_META[card.category].label}
-                      </span>
-                      <OriginDistillBadge card={card} />
-                      {!card.reviewed ? (
-                        <span className="inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
-                          <Clock className="h-2.5 w-2.5" />
-                          Draft Review
+                        {picked ? (
+                          <CheckSquare className="h-4 w-4 text-emerald-400" />
+                        ) : (
+                          <Square className="h-4 w-4" />
+                        )}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId(card.id)}
+                      className="min-w-0 flex-1 text-left"
+                    >
+                      <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                        <span
+                          className={`rounded border px-2 py-0.5 text-[10px] font-semibold uppercase ${
+                            CATEGORY_META[card.category].badgeClass
+                          }`}
+                        >
+                          {CATEGORY_META[card.category].label}
                         </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Verified
-                        </span>
-                      )}
-                    </div>
-                    <div className="line-clamp-1 text-sm font-medium text-slate-100">
-                      {card.title}
-                    </div>
-                    <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-500">
-                      <span className="truncate font-mono">{card.file_path ?? `${card.category}s/${card.id}.md`}</span>
-                      <span>{formatRelativeTime(card.updated_at)}</span>
-                    </div>
-                  </button>
+                        <OriginDistillBadge card={card} />
+                        {!card.reviewed ? (
+                          <span className="inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
+                            <Clock className="h-2.5 w-2.5" />
+                            Draft Review
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Verified
+                          </span>
+                        )}
+                      </div>
+                      <div className="line-clamp-1 text-sm font-medium text-slate-100">
+                        {card.title}
+                      </div>
+                      <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-500">
+                        <span className="truncate font-mono">{card.file_path ?? `${card.category}s/${card.id}.md`}</span>
+                        <span>{formatRelativeTime(card.updated_at)}</span>
+                      </div>
+                    </button>
+                  </div>
                 );
               })
             )}
@@ -612,6 +663,23 @@ export function MemoryHub({ onOpenSession, refreshSignal }: MemoryHubProps) {
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
+
+                    {onPackageSkill && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onPackageSkill(
+                            pickedForSkill.includes(selectedMemory.id)
+                              ? pickedForSkill
+                              : [selectedMemory.id, ...pickedForSkill]
+                          )
+                        }
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/25"
+                      >
+                        <PackagePlus className="h-3.5 w-3.5" />
+                        <span>{t('Package Skill', '打包为 Skill')}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

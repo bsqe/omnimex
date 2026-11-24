@@ -79,6 +79,11 @@ def create_mcp_server(
         description="Generate a redacted cross-agent handoff brief from a session and its relevant memories.",
     )(toolset.session_handoff)
 
+    mcp.tool(
+        name="skill_package",
+        description="Synthesize and optionally save/install a reusable SKILL.md skill from session history and memories.",
+    )(toolset.skill_package)
+
     return mcp, toolset
 
 

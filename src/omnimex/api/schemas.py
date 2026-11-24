@@ -15,8 +15,10 @@ from omnimex.core.models import (
     MemoryCategory,
     NormalizedSession,
     NormalizedTurn,
+    SavedSkillSummary,
     SearchHit,
     SearchMode,
+    SkillInstallTarget,
 )
 
 
@@ -264,3 +266,40 @@ class StatsResponse(BaseModel):
     memories_by_status: dict[Literal["heuristic", "llm_distilled", "pending", "manual"], int]
     recent_activity: list[ActivityBucketSchema] = Field(default_factory=list)
     distiller: DistillerSettingsResponse
+
+
+class SkillGenerateRequest(BaseModel):
+    session_ids: list[str] = Field(default_factory=list)
+    memory_ids: list[str] = Field(default_factory=list)
+    name: str | None = None
+    description: str | None = None
+    custom_instructions: str | None = None
+    use_llm: bool = False
+
+
+class SkillSaveRequest(BaseModel):
+    slug: str = Field(min_length=1, max_length=120)
+    skill_md: str = Field(min_length=1)
+
+
+class SkillExportRequest(BaseModel):
+    slug: str = Field(min_length=1, max_length=120)
+    skill_md: str = Field(min_length=1)
+
+
+class SkillInstallRequest(BaseModel):
+    slug: str = Field(min_length=1, max_length=120)
+    skill_md: str = Field(min_length=1)
+    targets: list[SkillInstallTarget] = Field(default_factory=list)
+    custom_dir: str | None = None
+    save_to_archive: bool = True
+
+
+class SkillListResponse(BaseModel):
+    total: int
+    skills: list[SavedSkillSummary] = Field(default_factory=list)
+
+
+class SkillDeleteResponse(BaseModel):
+    deleted: bool
+    slug: str

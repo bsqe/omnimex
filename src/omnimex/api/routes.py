@@ -10,7 +10,7 @@ from dataclasses import asdict
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Query, Request, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 
 from omnimex import __version__
 from omnimex.api.schemas import (
@@ -37,6 +37,12 @@ from omnimex.api.schemas import (
     SessionDetailResponse,
     SessionsListResponse,
     SessionTurnResponse,
+    SkillDeleteResponse,
+    SkillExportRequest,
+    SkillGenerateRequest,
+    SkillInstallRequest,
+    SkillListResponse,
+    SkillSaveRequest,
     StatsResponse,
 )
 from omnimex.core.models import (
@@ -46,7 +52,10 @@ from omnimex.core.models import (
     MemoryCategory,
     MemoryOrigin,
     NormalizedTurn,
+    SavedSkillSummary,
     SearchMode,
+    SkillDraft,
+    SkillInstallResult,
 )
 from omnimex.memory.native_import import NativeImportSourceStatus
 from omnimex.services.ingest import (
@@ -485,6 +494,77 @@ def generate_handoff(request: Request, payload: HandoffRequest) -> HandoffBrief:
         max_tokens=payload.max_tokens,
         custom_instructions=payload.custom_instructions,
     )
+
+
+@router.get("/skills", response_model=SkillListResponse)
+def list_skills(request: Request) -> SkillListResponse:
+    """List saved packaged SKILL.md bundles in Omnimex's central skill archive."""
+    svc = _service(request)
+    skills = svc.list_skills()
+    return SkillListResponse(total=len(skills), skills=skills)
+
+
+@router.post("/skills/generate", response_model=SkillDraft)
+def generate_skill(request: Request, payload: SkillGenerateRequest) -> SkillDraft:
+    """Synthesize a redacted SKILL.md draft from sessions and/or central memories."""
+    svc = _service(request)
+    return svc.generate_skill(
+        session_ids=payload.session_ids,
+        memory_ids=payload.memory_ids,
+        name=payload.name,
+        description=payload.description,
+        custom_instructions=payload.custom_instructions,
+        use_llm=payload.use_llm,
+    )
+
+
+@router.post("/skills/save", response_model=SavedSkillSummary)
+def save_packaged_skill(request: Request, payload: SkillSaveRequest) -> SavedSkillSummary:
+    """Save or update a packaged SKILL.md in ``data/skills/<slug>/SKILL.md``."""
+    svc = _service(request)
+    return svc.save_skill(payload.slug, payload.skill_md)
+
+
+@router.post("/skills/export")
+def export_packaged_skill(request: Request, payload: SkillExportRequest) -> Response:
+    """Export ``<slug>/SKILL.md`` as a downloadable ZIP archive."""
+    svc = _service(request)
+    clean_slug, archive_bytes = svc.export_skill_zip(payload.slug, payload.skill_md)
+    return Response(
+        content=archive_bytes,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{clean_slug}.zip"',
+        },
+    )
+
+
+@router.post("/skills/install", response_model=SkillInstallResult)
+def install_packaged_skill_route(
+    request: Request, payload: SkillInstallRequest
+) -> SkillInstallResult:
+    """Install a packaged SKILL.md into selected coding-agent skill directories."""
+    svc = _service(request)
+    from pathlib import Path
+
+    custom_dir = Path(payload.custom_dir) if payload.custom_dir and payload.custom_dir.strip() else None
+    return svc.install_skill(
+        payload.slug,
+        payload.skill_md,
+        targets=payload.targets,
+        custom_dir=custom_dir,
+        save_to_archive=payload.save_to_archive,
+    )
+
+
+@router.delete("/skills/{slug}", response_model=SkillDeleteResponse)
+def delete_packaged_skill_route(request: Request, slug: str) -> SkillDeleteResponse:
+    """Delete a saved skill bundle from Omnimex's central skill archive."""
+    svc = _service(request)
+    deleted = svc.delete_skill(slug)
+    if not deleted:
+        raise LookupError(f"Saved skill not found: {slug}")
+    return SkillDeleteResponse(deleted=True, slug=slug)
 
 
 @router.get("/adapters", response_model=AdaptersResponse)

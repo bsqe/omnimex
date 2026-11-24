@@ -25,11 +25,27 @@ from omnimex.core.config import (
     load_config,
     save_local_distiller_config,
 )
-from omnimex.core.models import utc_now
+from omnimex.core.models import (
+    SavedSkillSummary,
+    SkillDraft,
+    SkillInstallResult,
+    SkillInstallTarget,
+    utc_now,
+)
 from omnimex.distill.pipeline import BackfillResult, DistillationPipeline
 from omnimex.handoff.builder import HandoffBuilder
 from omnimex.memory.markdown_store import MemoryManager, MemorySyncReport
 from omnimex.memory.native_import import NativeImportSourceStatus, NativeMemoryImporter
+from omnimex.skill_forge import (
+    SkillBuilder,
+    build_skill_zip_bytes,
+    delete_saved_skill,
+    install_packaged_skill,
+    list_saved_skills,
+)
+from omnimex.skill_forge import (
+    save_skill as archive_save_skill,
+)
 from omnimex.storage.db import OmnimexDB, format_iso_utc
 from omnimex.storage.embeddings import EmbeddingProvider, create_embedder
 from omnimex.storage.search import HybridSearcher
@@ -245,6 +261,7 @@ class IngestService:
         memory_manager: MemoryManager | None = None,
         distillation: DistillationPipeline | None = None,
         handoff_builder: HandoffBuilder | None = None,
+        skill_builder: SkillBuilder | None = None,
         native_importer: NativeMemoryImporter | None = None,
     ) -> None:
         self.config = config or load_config()
@@ -274,6 +291,11 @@ class IngestService:
         self.handoff_builder = handoff_builder or HandoffBuilder(
             self.db,
             self.memory_manager,
+        )
+        self.skill_builder = skill_builder or SkillBuilder(
+            self.db,
+            self.memory_manager,
+            distiller_config=self.config.distiller,
         )
         self.searcher = HybridSearcher(self.db, self.embedder)
         self.events = EventBroker()
@@ -811,6 +833,7 @@ class IngestService:
 
         next_distiller: DistillerConfig = current.model_copy(update=updates)
         self.distillation.set_distiller(next_distiller)
+        self.skill_builder.set_distiller_config(next_distiller)
         self.config = self.config.model_copy(update={"distiller": next_distiller})
         if persist:
             save_local_distiller_config(next_distiller, root_dir=self.config.root_dir)
@@ -850,6 +873,77 @@ class IngestService:
             },
         )
         return job_id, result
+
+    def generate_skill(
+        self,
+        *,
+        session_ids: Sequence[str] = (),
+        memory_ids: Sequence[str] = (),
+        name: str | None = None,
+        description: str | None = None,
+        custom_instructions: str | None = None,
+        use_llm: bool = False,
+    ) -> SkillDraft:
+        """Synthesize a redacted SKILL.md draft from sessions and/or central memories."""
+        return self.skill_builder.build(
+            session_ids=session_ids,
+            memory_ids=memory_ids,
+            name=name,
+            description=description,
+            custom_instructions=custom_instructions,
+            use_llm=use_llm,
+        )
+
+    def list_skills(self) -> list[SavedSkillSummary]:
+        """List saved packaged skills from the central ``data/skills`` store."""
+        return list_saved_skills(self.config.skills_dir)
+
+    def save_skill(self, slug: str, skill_md: str) -> SavedSkillSummary:
+        """Save (or overwrite) a packaged SKILL.md in the central store."""
+        saved = archive_save_skill(self.config.skills_dir, slug, skill_md)
+        self.events.publish(
+            "skill.saved",
+            {"slug": saved.slug, "file_path": saved.file_path},
+        )
+        return saved
+
+    def delete_skill(self, slug: str) -> bool:
+        """Delete a curated skill from the central store."""
+        return delete_saved_skill(self.config.skills_dir, slug)
+
+    def export_skill_zip(self, slug: str, skill_md: str) -> tuple[str, bytes]:
+        """Return ``(clean_slug, zip_bytes)`` packaging ``<slug>/SKILL.md``."""
+        return build_skill_zip_bytes(slug, skill_md)
+
+    def install_skill(
+        self,
+        slug: str,
+        skill_md: str,
+        *,
+        targets: Sequence[SkillInstallTarget] = (),
+        custom_dir: Path | None = None,
+        home_dir: Path | None = None,
+        save_to_archive: bool = True,
+    ) -> SkillInstallResult:
+        """Install packaged SKILL.md into selected coding-agent directories."""
+        if save_to_archive:
+            archive_save_skill(self.config.skills_dir, slug, skill_md)
+        result = install_packaged_skill(
+            slug,
+            skill_md,
+            targets=targets,
+            custom_dir=custom_dir,
+            home_dir=home_dir,
+        )
+        self.events.publish(
+            "skill.installed",
+            {
+                "slug": result.slug,
+                "targets": [entry.target for entry in result.installed],
+                "errors_count": len(result.errors),
+            },
+        )
+        return result
 
     def get_stats(self) -> dict[str, Any]:
         """Return enriched telemetry matching ``GET /api/stats`` in API_CONTRACT."""

@@ -5,6 +5,7 @@ import {
   BookOpen,
   Database,
   Languages,
+  PackagePlus,
   Radio,
   RefreshCw,
   Search,
@@ -17,14 +18,16 @@ import { AdaptersStats } from './sections/AdaptersStats';
 import { HandoffWorkbench } from './sections/HandoffWorkbench';
 import { MemoryHub } from './sections/MemoryHub';
 import { SearchExplorer } from './sections/SearchExplorer';
+import { SkillForge } from './sections/SkillForge';
 import { LocaleProvider, useLocale } from './utils/i18n';
 
-type SectionId = 'search' | 'memories' | 'handoff' | 'adapters';
+type SectionId = 'search' | 'memories' | 'handoff' | 'skills' | 'adapters';
 
 const NAV_ITEMS: Array<{ id: SectionId; labelEn: string; labelZh: string; icon: typeof Search }> = [
   { id: 'search', labelEn: 'Search & Explorer', labelZh: '搜索与会话', icon: Search },
   { id: 'memories', labelEn: 'Memory Hub', labelZh: '记忆中心', icon: BookOpen },
   { id: 'handoff', labelEn: 'Handoff Workbench', labelZh: '跨 Agent 交接', icon: ArrowRightLeft },
+  { id: 'skills', labelEn: 'Skill Forge', labelZh: 'Skill 工坊', icon: PackagePlus },
   { id: 'adapters', labelEn: 'Adapters & Stats', labelZh: '适配器与统计', icon: Activity },
 ];
 
@@ -34,6 +37,9 @@ function AppShell() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [highlightTurnIndex, setHighlightTurnIndex] = useState<number | null>(null);
   const [handoffSessionId, setHandoffSessionId] = useState<string | null>(null);
+  const [skillSessionIds, setSkillSessionIds] = useState<string[]>([]);
+  const [skillMemoryIds, setSkillMemoryIds] = useState<string[]>([]);
+  const [skillSeedNonce, setSkillSeedNonce] = useState(0);
   const [refreshSignal, setRefreshSignal] = useState(0);
   const [listRefreshSignal, setListRefreshSignal] = useState(0);
   const [pendingUpdateSessionId, setPendingUpdateSessionId] = useState<string | null>(null);
@@ -92,7 +98,9 @@ function AppShell() {
         evt.type === 'scan.completed' ||
         evt.type === 'memory.synced' ||
         evt.type === 'distill.completed' ||
-        evt.type === 'embedding.completed'
+        evt.type === 'embedding.completed' ||
+        evt.type === 'skill.saved' ||
+        evt.type === 'skill.installed'
       ) {
         scheduleListRefresh();
       }
@@ -127,6 +135,21 @@ function AppShell() {
   const handleCreateHandoff = useCallback((sessionId: string) => {
     setHandoffSessionId(sessionId);
     setActiveTab('handoff');
+  }, []);
+
+  const handlePackageSessionSkill = useCallback((sessionId: string) => {
+    setSkillSessionIds([sessionId]);
+    setSkillMemoryIds([]);
+    setSkillSeedNonce((n) => n + 1);
+    setActiveTab('skills');
+  }, []);
+
+  const handlePackageMemorySkills = useCallback((memoryIds: string[]) => {
+    if (memoryIds.length === 0) return;
+    setSkillSessionIds([]);
+    setSkillMemoryIds(memoryIds);
+    setSkillSeedNonce((n) => n + 1);
+    setActiveTab('skills');
   }, []);
 
   const handleModeChange = (mode: ConnectionMode) => {
@@ -307,6 +330,7 @@ function AppShell() {
                   highlightTurnIndex={highlightTurnIndex}
                   onSelectSession={handleSelectSession}
                   onCreateHandoff={handleCreateHandoff}
+                  onPackageSkill={handlePackageSessionSkill}
                   refreshSignal={refreshSignal}
                   listRefreshSignal={listRefreshSignal}
                   hasPendingSessionUpdate={
@@ -318,6 +342,7 @@ function AppShell() {
               {activeTab === 'memories' && (
                 <MemoryHub
                   onOpenSession={handleOpenSessionFromMemory}
+                  onPackageSkill={handlePackageMemorySkills}
                   refreshSignal={refreshSignal + listRefreshSignal}
                 />
               )}
@@ -325,6 +350,14 @@ function AppShell() {
                 <HandoffWorkbench
                   initialSessionId={handoffSessionId ?? selectedSessionId}
                   refreshSignal={refreshSignal}
+                />
+              )}
+              {activeTab === 'skills' && (
+                <SkillForge
+                  initialSessionIds={skillSessionIds}
+                  initialMemoryIds={skillMemoryIds}
+                  seedNonce={skillSeedNonce}
+                  refreshSignal={refreshSignal + listRefreshSignal}
                 />
               )}
               {activeTab === 'adapters' && (

@@ -4,14 +4,22 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from omnimex.core.config import OmnimexConfig, load_config
-from omnimex.core.models import MemoryCategory, SearchMode
+from omnimex.core.models import MemoryCategory, SearchMode, SkillInstallTarget
 from omnimex.core.redaction import redact_session
 from omnimex.handoff.builder import HandoffBuilder
 from omnimex.memory.governance import detect_conflicts
 from omnimex.memory.markdown_store import MemoryManager
+from omnimex.skill_forge import (
+    SkillBuilder,
+    install_packaged_skill,
+)
+from omnimex.skill_forge import (
+    save_skill as archive_save_skill,
+)
 from omnimex.storage.db import OmnimexDB
 from omnimex.storage.embeddings import EmbeddingProvider, create_embedder
 from omnimex.storage.search import HybridSearcher
@@ -32,6 +40,8 @@ class OmnimexMcpTools:
     memory_manager: MemoryManager
     searcher: HybridSearcher
     handoff_builder: HandoffBuilder
+    skill_builder: SkillBuilder | None = None
+    skills_dir: Path | None = None
 
     @classmethod
     def from_config(
@@ -58,11 +68,18 @@ class OmnimexMcpTools:
         )
         searcher = HybridSearcher(resolved_db, resolved_embedder)
         handoff = HandoffBuilder(resolved_db, resolved_mgr)
+        skill_builder = SkillBuilder(
+            resolved_db,
+            resolved_mgr,
+            distiller_config=cfg.distiller,
+        )
         return cls(
             db=resolved_db,
             memory_manager=resolved_mgr,
             searcher=searcher,
             handoff_builder=handoff,
+            skill_builder=skill_builder,
+            skills_dir=cfg.skills_dir,
         )
 
     def history_search(
@@ -292,6 +309,48 @@ class OmnimexMcpTools:
         except LookupError as exc:
             return {"found": False, "error": str(exc)}
         return {"found": True, "handoff": brief.model_dump(mode="json")}
+
+    def skill_package(
+        self,
+        session_ids: Sequence[str] = (),
+        memory_ids: Sequence[str] = (),
+        name: str | None = None,
+        description: str | None = None,
+        custom_instructions: str | None = None,
+        use_llm: bool = False,
+        save: bool = False,
+        install_targets: Sequence[SkillInstallTarget] = (),
+    ) -> dict[str, Any]:
+        """Package selected sessions and/or memories into a reusable SKILL.md skill."""
+        builder = self.skill_builder or SkillBuilder(self.db, self.memory_manager)
+        try:
+            draft = builder.build(
+                session_ids=session_ids,
+                memory_ids=memory_ids,
+                name=name,
+                description=description,
+                custom_instructions=custom_instructions,
+                use_llm=use_llm,
+            )
+        except (LookupError, ValueError) as exc:
+            return {"created": False, "error": str(exc)}
+
+        payload: dict[str, Any] = {
+            "created": True,
+            "skill": draft.model_dump(mode="json"),
+        }
+        target_skills_dir = self.skills_dir or (self.memory_manager.memories_dir.parent / "skills")
+        if save or install_targets:
+            saved = archive_save_skill(target_skills_dir, draft.slug, draft.skill_md)
+            payload["saved"] = saved.model_dump(mode="json")
+        if install_targets:
+            installed = install_packaged_skill(
+                draft.slug,
+                draft.skill_md,
+                targets=install_targets,
+            )
+            payload["installed"] = installed.model_dump(mode="json")
+        return payload
 
 
 __all__ = ["OmnimexMcpTools"]

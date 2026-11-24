@@ -30,6 +30,11 @@ app = typer.Typer(
     no_args_is_help=True,
     help="Omnimex: Cross-agent session search, central Markdown memory hub, and handoff CLI.",
 )
+skill_app = typer.Typer(
+    no_args_is_help=True,
+    help="Package solved sessions and memories into reusable SKILL.md agent skills.",
+)
+app.add_typer(skill_app, name="skill")
 
 
 def _load_service(config_path: Path | None) -> IngestService:
@@ -543,6 +548,112 @@ def setup(
 
     if all_errors:
         raise typer.Exit(code=1)
+
+
+@skill_app.command("list")
+def skill_list(
+    config: Annotated[Path | None, typer.Option("--config", "-c", help="Path to omnimex.toml.")] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Emit JSON output.")] = False,
+) -> None:
+    """List curated SKILL.md packages stored in Omnimex's central skill archive."""
+    service = _load_service(config)
+    try:
+        items = service.list_skills()
+        if json_output:
+            _echo_json([item.model_dump(mode="json") for item in items])
+            return
+        if not items:
+            typer.echo(f"No packaged skills in {service.config.skills_dir} yet.")
+            return
+        for item in items:
+            typer.echo(f"- {item.slug} (~{item.token_estimate} tokens): {item.description}")
+    finally:
+        service.close()
+
+
+@skill_app.command("build")
+def skill_build(
+    session: Annotated[list[str] | None, typer.Option("--session", "-s", help="Source session ID(s).")] = None,
+    memory: Annotated[list[str] | None, typer.Option("--memory", "-m", help="Source memory ID(s).")] = None,
+    name: Annotated[str | None, typer.Option("--name", "-n", help="Target Skill name / slug.")] = None,
+    description: Annotated[
+        str | None, typer.Option("--description", "-d", help="Trigger description for SKILL.md frontmatter.")
+    ] = None,
+    instructions: Annotated[
+        str | None, typer.Option("--instructions", "-i", help="Extra workflow instructions.")
+    ] = None,
+    use_llm: Annotated[
+        bool, typer.Option("--use-llm", help="Polish draft with configured Ollama/OpenAI distiller if available.")
+    ] = False,
+    save: Annotated[bool, typer.Option("--save/--no-save", help="Save to data/skills/<slug>/SKILL.md.")] = True,
+    install: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--install",
+            help="Install into agent skill dir(s): antigravity, claude_code, codex, cursor, gemini_cli, windsurf.",
+        ),
+    ] = None,
+    zip_out: Annotated[Path | None, typer.Option("--zip", help="Write <slug>/SKILL.md ZIP archive.")] = None,
+    home: Annotated[Path | None, typer.Option("--home", help="Override home dir when installing.")] = None,
+    config: Annotated[Path | None, typer.Option("--config", "-c", help="Path to omnimex.toml.")] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Emit JSON output.")] = False,
+) -> None:
+    """Package sessions and/or central memories into a reusable SKILL.md skill."""
+    service = _load_service(config)
+    try:
+        try:
+            draft = service.generate_skill(
+                session_ids=session or [],
+                memory_ids=memory or [],
+                name=name,
+                description=description,
+                custom_instructions=instructions,
+                use_llm=use_llm,
+            )
+        except (LookupError, ValueError) as exc:
+            typer.echo(f"Error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+
+        saved_item = service.save_skill(draft.slug, draft.skill_md) if (save or install) else None
+        install_result = (
+            service.install_skill(
+                draft.slug,
+                draft.skill_md,
+                targets=install,  # type: ignore[arg-type]
+                home_dir=home,
+                save_to_archive=False,
+            )
+            if install
+            else None
+        )
+        if zip_out is not None:
+            _, zip_bytes = service.export_skill_zip(draft.slug, draft.skill_md)
+            zip_out.parent.mkdir(parents=True, exist_ok=True)
+            zip_out.write_bytes(zip_bytes)
+
+        if json_output:
+            _echo_json(
+                {
+                    "skill": draft.model_dump(mode="json"),
+                    "saved": saved_item.model_dump(mode="json") if saved_item else None,
+                    "installed": install_result.model_dump(mode="json") if install_result else None,
+                    "zip_path": str(zip_out.resolve()) if zip_out else None,
+                }
+            )
+            return
+
+        typer.echo(draft.skill_md)
+        if saved_item is not None:
+            typer.echo(f"Saved archive: {saved_item.file_path}", err=True)
+        if install_result is not None:
+            for entry in install_result.installed:
+                typer.echo(f"Installed [{entry.target}] ({entry.status}): {entry.path}", err=True)
+            for err in install_result.errors:
+                typer.echo(f"Install error: {err}", err=True)
+        if zip_out is not None:
+            typer.echo(f"Exported ZIP: {zip_out.resolve()}", err=True)
+    finally:
+        service.close()
 
 
 if __name__ == "__main__":
